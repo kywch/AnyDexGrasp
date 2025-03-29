@@ -16,6 +16,7 @@ pip = ">=25.0.1,<26"
 cython = ">=3.0.11,<4"
 setuptools = "<60"
 wheel = ">=0.45.1,<0.46"
+openssl = "==3.0.2"
 
 # cuda build dependencies
 # necessary for MinkowskiEngine
@@ -29,9 +30,6 @@ ninja = ">=1.12.1,<2"
 numpy = "==1.23.3"
 pytorch = "==2.3.1"
 pytorch-cuda = "==12.1"
-
-# AnyDexGrasp
-tensorboard = ">=2.19.0,<3"
 scipy = ">=1.13.1,<2"
 scikit-learn = ">=1.6.1,<2"
 torchvision = ">=0.18.1,<0.19"
@@ -41,6 +39,7 @@ open3d = ">=0.18.0, <0.19"
 graspnetAPI = { git = "https://github.com/kywch/graspnetAPI.git" }
 knn_pytorch = { path = "./knn" }
 pointnet2 = { path = "./pointnet2" }
+tensorboard = ">=2.19.0, <3"
 
 [tasks]
 build_minko = "cd MinkowskiEngine; python setup.py install"
