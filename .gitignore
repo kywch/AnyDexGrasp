@@ -14,14 +14,13 @@
 **/knn/knn_pytorch.egg-info/
 *.o
 *.so
-*.egg
+*.egg*
 *.ply
 .DS_Store
 render_kitchen.py
 .history/
 
 **/meshes/**
-**/MinkowskiEngine
 **/ur_toolbox/ur_toolbox.egg-info/
 **/ur_toolbox/dist/
 **/ur_toolbox/venv/

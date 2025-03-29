@@ -46,7 +46,7 @@ class CameraInfo():
         self.scale = scale
 
 class GraspNetVoxelizationDataset(Dataset):
-    def __init__(self, root, valid_obj_idxs=None, grasp_labels=None, camera='kinect', split='train', voxel_size=0.005, heatmap='scene', heatmap_th=0.6, view_heatmap_th=0.6, score_as_heatmap=False, score_as_view_heatmap=False, remove_outlier=False, remove_invisible=False, augment=False, load_label=True, centralize_points=False):
+    def __init__(self, root, valid_obj_idxs=None, grasp_labels=None, camera='realsense', split='train', voxel_size=0.005, heatmap='scene', heatmap_th=0.6, view_heatmap_th=0.6, score_as_heatmap=False, score_as_view_heatmap=False, remove_outlier=False, remove_invisible=False, augment=False, load_label=True, centralize_points=False):
         self.root = root
         self.split = split
         self.voxel_size = voxel_size
@@ -69,7 +69,8 @@ class GraspNetVoxelizationDataset(Dataset):
         assert(self.heatmap in ['scene', 'object', 'collision'])
 
         if split == 'train':
-            self.sceneIds = list( range(100) )
+            # self.sceneIds = list( range(100) )  # Ouf of memory for 128G ram 
+            self.sceneIds = list( range(10) )
         elif split == 'test':
             self.sceneIds = list( range(100,190) )
         elif split == 'test_seen':
@@ -530,7 +531,7 @@ def convert_data_to_gpu(data):
     return ret_dict
 
 if __name__ == '__main__':
-    root = '/data/Benchmark/graspnet'
+    root = 'logs/data/representation_model/graspnet_v1_newformat/'
     valid_obj_idxs, grasp_labels = load_grasp_labels(root)
     train_dataset = GraspNetVoxelizationDataset(root, valid_obj_idxs, grasp_labels, split='train', voxel_size=0.005, remove_outlier=True, remove_invisible=True)
     print(len(train_dataset))
