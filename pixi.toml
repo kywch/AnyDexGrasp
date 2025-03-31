@@ -16,7 +16,6 @@ pip = ">=25.0.1,<26"
 cython = ">=3.0.11,<4"
 setuptools = "<60"
 wheel = ">=0.45.1,<0.46"
-openssl = "==3.0.2"
 
 # cuda build dependencies
 # necessary for MinkowskiEngine
