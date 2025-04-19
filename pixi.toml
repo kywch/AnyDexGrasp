@@ -17,6 +17,8 @@ cython = ">=3.0.11,<4"
 setuptools = "<60"
 wheel = ">=0.45.1,<0.46"
 
+ruff = ">=0.11.6,<0.12"
+
 # cuda build dependencies
 # necessary for MinkowskiEngine
 gxx_linux-64 = "<13"
@@ -39,6 +41,10 @@ graspnetAPI = { git = "https://github.com/kywch/graspnetAPI.git" }
 knn_pytorch = { path = "./knn" }
 pointnet2 = { path = "./pointnet2" }
 tensorboard = ">=2.19.0, <3"
+
+# for generating mesh file
+xlrd2 = ">=1.3.4, <2"
+pybullet = ">=3.2.7, <4"
 
 [tasks]
 build_minko = "cd MinkowskiEngine; python setup.py install"
