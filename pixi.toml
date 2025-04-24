@@ -38,7 +38,7 @@ torchvision = ">=0.18.1,<0.19"
 [pypi-dependencies]
 open3d = ">=0.18.0, <0.19"
 graspnetAPI = { git = "https://github.com/kywch/graspnetAPI.git" }
-knn_pytorch = { path = "./knn" }
+knn_pytorch = { path = "./knn_pytorch" }
 pointnet2 = { path = "./pointnet2" }
 tensorboard = ">=2.19.0, <3"
 
