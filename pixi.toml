@@ -46,6 +46,9 @@ tensorboard = ">=2.19.0, <3"
 xlrd2 = ">=1.3.4, <2"
 pybullet = ">=3.2.7, <4"
 
+# Minimize customizing robosuite
+robosuite = ">=1.5.1, <2"
+
 [tasks]
 build_minko = "cd MinkowskiEngine; python setup.py install"
 test_minko = "python -c 'import MinkowskiEngine as ME; ME.print_diagnostics()'"

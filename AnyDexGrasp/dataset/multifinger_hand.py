@@ -1,33 +1,14 @@
 import os
-from re import sub
-import sys
-import numpy as np
-from PIL import Image
-import scipy.io as scio
 import json
-import torch
-import random
-import shutil
-from scipy.spatial.transform import Rotation
 import copy
+import glob
+import random
+import collections.abc as container_abcs
 
-TORCH_MAJOR = int(torch.__version__.split(".")[0])
-TORCH_MINOR = int(torch.__version__.split(".")[1])
-
-if TORCH_MAJOR == 1 and TORCH_MINOR < 8:
-    from torch._six import container_abcs
-else:
-    import collections.abc as container_abcs
-
+import numpy as np
+import torch
 from torch.utils.data import Dataset
-from tqdm import tqdm
-from ..utils.np_utils import (
-    transform_point_cloud,
-    remove_invisible_grasp_points,
-    create_point_cloud_from_depth_image,
-    get_workspace_mask,
-)
-import MinkowskiEngine as ME
+
 
 MAX_GRIPPER_WIDTH = 0.1
 MAX_MU = 1.0
@@ -65,12 +46,19 @@ class MultifingerDataset(Dataset):
         self.train_type = train_type
         self.num_multifinger_type = num_multifinger_type
 
-        if self.dataset_type == "train":
-            information_json_file_name = os.path.join(root.split("train_sr")[0], "obj140.json")
-        elif self.dataset_type == "test":
-            information_json_file_name = os.path.join(root.split("test_sr")[0], "test_single_point.json")
+        # Check if there are multiple json files in the directory
+        json_files = glob.glob(os.path.join(root, "*.json"))
+        if len(json_files) == 1:
+            information_json_file_name = json_files[0]
+        elif self.dataset_type in ["train", "test"]:
+            for file in json_files:
+                if self.dataset_type in file:
+                    information_json_file_name = file
+                    break
         else:
-            raise ValueError('dataset type must be "test" or "train"')
+            raise ValueError(
+                'Could not find valid json, or dataset type must be "test" or "train". Manually check the file.'
+            )
 
         with open(information_json_file_name) as f:
             self.informations = json.load(f)
@@ -189,8 +177,8 @@ def collate_fn(batch):
         ret_dict = {key: collate_fn([d[key] for d in batch]) for key in batch[0]}
 
         for key in ret_dict.keys():
-            if not key in ["coords", "feats", "sinput"]:
-                ret_dict[key] = torch.tensor([d.numpy() for d in ret_dict[key]])
+            if key not in ["coords", "feats", "sinput"]:
+                ret_dict[key] = torch.tensor(np.array([d.numpy() for d in ret_dict[key]]))
         return ret_dict
     raise TypeError("batch must contain tensors, dicts or lists; found {}".format(type(batch[0])))
 

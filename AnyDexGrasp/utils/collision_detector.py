@@ -193,8 +193,10 @@ class ModelFreeCollisionDetectorMultifinger:
             if DEBUG:
                 print("transformed mesh")
                 FOR_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
-                o3d.visualization.draw_geometries(
-                    [self.scene_cloud, meshes_pointclouds, FOR_base, two_fingers_ggarray[int(idx)].to_open3d_geometry()]
+                o3d.visualization.draw_plotly(
+                    [self.scene_cloud, meshes_pointclouds, FOR_base, two_fingers_ggarray[int(idx)].to_open3d_geometry()],
+                    width=1024,
+                    height=640,
                 )
 
             if np.array(output).astype(int).sum() > collision_thresh:
@@ -212,13 +214,15 @@ class ModelFreeCollisionDetectorMultifinger:
                         np.array(self.scene_cloud.points)[~(np.array(output))]
                     )
                     normal_point_cloud.paint_uniform_color([0, 0, 1])
-                    o3d.visualization.draw_geometries(
+                    o3d.visualization.draw_plotly(
                         [
                             normal_point_cloud,
                             collision_point_cloud,
                             FOR_base,
                             two_fingers_ggarray[int(idx)].to_open3d_geometry(),
-                        ]
+                        ],
+                        width=1024,
+                        height=640,
                     )
             else:
                 empty_mask.append(True)
