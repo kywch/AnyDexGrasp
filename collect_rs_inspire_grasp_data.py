@@ -19,7 +19,7 @@ import MinkowskiEngine as ME
 
 import robosuite.utils.camera_utils as CU
 
-from AnyDexGrasp.models.minkowski_graspnet_single_point import MinkowskiGraspNet
+from AnyDexGrasp.models.minkowski_graspnet import MinkowskiGraspNet
 from AnyDexGrasp.utils.pt_utils import batch_viewpoint_params_to_matrix
 from AnyDexGrasp.utils.collision_detector import ModelFreeCollisionDetectorMultifinger
 from AnyDexGrasp.utils.np_utils import transform_point_cloud
@@ -40,7 +40,7 @@ NUM_OF_INSPIREHAND_TYPE = 4
 INSPIREHANDR_VOXEL_GRID = 0.002
 POINTCLOUD_AUGMENT_NUM = 10
 
-GRAB_SITE_OFFSET = np.array([-0.01, 0.02, 0])  # in the grip frame
+GRAB_SITE_OFFSET = np.array([-0.01, 0, 0])  # in the grip frame
 
 
 def parse_preds(end_points, use_v2=True):
@@ -177,6 +177,10 @@ class GraspNetRunner:
         self.network.to(self.device)
         self.network.eval()
 
+        # Get the number of params
+        num_params = sum(p.numel() for p in self.network.parameters() if p.requires_grad)
+        print(f"Number of parameters: {num_params}")
+
         checkpoint = torch.load(graspnet_path)
         self.network.load_state_dict(checkpoint["model_state_dict"])
 
@@ -236,7 +240,10 @@ class GraspNetRunner:
         preds[:, 3:12] = pose_rotation.view((-1, 9))
 
         # CHECK the hardcoded numbers
+        # Something like ... preserves the grasp poses that are within a 30-degree angle with the vertical pose
         # mask = (preds[:, 9] > 0.85) & (preds[:, 1] < MAX_GRASP_WIDTH) & (preds[:, 1] > MIN_GRASP_WIDTH)
+
+        # The second mask preserves the grasp poses within the workspace of the robot.
         # workspace_mask = (preds[:, 12] > -0.25) & (preds[:, 12] < 0.25) & (preds[:, 13] > -0.20) & (preds[:, 13] < 0.05)
 
         # NOTE: The below is from robot_inspire.py  ... A bit different
@@ -806,6 +813,8 @@ if __name__ == "__main__":
     # check the image
     Image.fromarray(obs_dict["{}_image".format(camera_name)][::-1]).show()
 
+    input("Press Enter to continue...")
+
     while True:
         # Running the grasp net
         color_map = obs_dict["{}_image".format(camera_name)][::-1] / 255.0
@@ -825,7 +834,7 @@ if __name__ == "__main__":
             scene_cloud.paint_uniform_color([0.8, 0.8, 0.8])
             o3d.visualization.draw_plotly([scene_cloud, frame, sphere], width=1024, height=640)
 
-        if len(ggarray) == 0:
+        if ggarray is None or len(ggarray) == 0:
             print("No grasp detected this. Trying again")
             continue
 
@@ -969,6 +978,17 @@ if __name__ == "__main__":
         o3d.visualization.draw_plotly(transformed, width=1024, height=640)
 
     execute_grasp(robot_env, camera, InspireHandR_grasp_used, two_fingers_grasp_used, grab_site_offset=GRAB_SITE_OFFSET)
+
+    # Below is the data required to train the grasp decision models
+    """
+    end_points = {}
+    end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
+    end_points["multifinger_pose_finger_type"] = batch_data_label["multifinger_pose_finger_type"]
+    end_points["multifinger_pose_depth_type"] = batch_data_label["multifinger_pose_depth_type"]
+    end_points["grasp_preds_features"] = batch_data_label["grasp_preds_features"]
+    end_points["if_flip"] = batch_data_label["if_flip"]
+    end_points["result"] = batch_data_label["result"]  # Grasp success 1, fail 0
+    """
 
     # TODO: after executing grasp, save relevant information for training
     # Repeat this for 1000 trials per grasp type

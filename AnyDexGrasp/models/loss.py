@@ -369,7 +369,7 @@ class MultifingerType1Loss(nn.Module):
         self,
         num_multifinger_type=1,
         num_multifinger_depth=4,
-        num_two_finger_angle=12,
+        num_two_finger_angle=1,
         num_two_finger_depth=5,
         train_type=0,
         add_collision=False,
@@ -414,13 +414,14 @@ class MultifingerType1Loss(nn.Module):
         B = end_points["stage4_grasp_preds_five_hand"].shape[0]
         multifinger_hand_finger_type = end_points["multifinger_pose_finger_type"]
         multifinger_hand_depth_type = end_points["multifinger_pose_depth_type"]
-        two_fingers_pose_angle_type = end_points["two_fingers_pose_angle_type"]
+        # NOTE: The grasp decision model does NOT consider two-finger gripper angle
+        # two_fingers_pose_angle_type = end_points["two_fingers_pose_angle_type"]
         two_fingers_pose_depth_type = end_points["two_fingers_pose_depth_type"]
         label = end_points["result"].float().view(-1)
 
         valid_place = (
             (
-                (0 * self.num_two_finger_depth + two_fingers_pose_depth_type) * self.num_multifinger_depth
+                (two_fingers_pose_depth_type) * self.num_multifinger_depth
                 + multifinger_hand_depth_type
             )
             .long()

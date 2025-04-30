@@ -21,9 +21,6 @@ from graspnetAPI import GraspGroup
 import robosuite.utils.camera_utils as CU
 
 from AnyDexGrasp.models import minkowski_graspnet
-from AnyDexGrasp.models.minkowski_graspnet_single_point import (
-    MinkowskiGraspNetMultifingerType1Inference,
-)
 from AnyDexGrasp.utils.collision_detector import ModelFreeCollisionDetectorMultifinger
 
 from robosuite_env import make_robosuite_env, RobosuiteCameraInfo, execute_grasp
@@ -51,7 +48,7 @@ NUM_OF_INSPIRE_TYPE = 8
 POINTCLOUD_AUGMENT_NUM = 10
 INSPIREHANDR_VOXEL_GRID = 0.003
 
-GRAB_SITE_OFFSET = np.array([-0.01, 0.02, 0])  # in the grip frame
+GRAB_SITE_OFFSET = np.zeros(3)  # np.array([-0.01, 0.02, 0])  # in the grip frame
 
 
 def get_graspgroup_features(grasp_features_array, sinput):
@@ -221,9 +218,9 @@ def save_grasp_information(
     print("Saved successfully")
 
 
-def get_inspire_model(inspire_models_path, model_type="480"):
+def get_inspire_model(inspire_models_path, model_input_dim=480):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    inspire_model_path = os.path.join(inspire_models_path, model_type)
+    inspire_model_path = os.path.join(inspire_models_path, str(model_input_dim))
 
     # Sort the keys (grasp types), from 1 to 8
     sub_models = os.listdir(inspire_model_path)
@@ -236,7 +233,7 @@ def get_inspire_model(inspire_models_path, model_type="480"):
         inspire_model_type_path = os.path.join(model_classs_type, model_files[0])  # Just use 1 file
         inspire_net = torch.load(inspire_model_type_path)
 
-        inspire_model = MinkowskiGraspNetMultifingerType1Inference(input_num=int(model_type))
+        inspire_model = minkowski_graspnet.MultifingerGraspSuccessPredictor(input_num=model_input_dim)
         # NOTE: torch.load() needed -- sys.modules["minkowski_graspnet"] = minkowski_graspnet
         inspire_model.load_state_dict(inspire_net.state_dict())
         inspire_model.to(device)
@@ -269,10 +266,9 @@ def get_inspire_depth_type(inspire_models, grasp_features_dic, ggarray, grasp_fe
     #     elif model_type == "480":
 
     print("Use the models with 480 ...")
-    model_input = torch.cat([grasp_features_dic["grasp_preds_features"]], dim=1)
     for model_class, sub_inspire_model in inspire_models.items():
         with torch.no_grad():
-            grasp_pred, _ = sub_inspire_model(model_input)  # (B, 1， NUM_OF_TWO_FINGER_DEPTH*NUM_OF_INSPIRE_DEPTH)
+            grasp_pred = sub_inspire_model(grasp_features_dic["grasp_preds_features"])  # (B, 1， NUM_OF_TWO_FINGER_DEPTH*NUM_OF_INSPIRE_DEPTH)
             grasp_pred = grasp_pred.view(grasp_pred.shape[0], 5 * NUM_OF_INSPIRE_DEPTH)
 
         two_fingers_depth = grasp_features_dic["grasp_depths"]  # (B, )
