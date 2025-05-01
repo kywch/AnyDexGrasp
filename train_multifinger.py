@@ -1,369 +1,447 @@
-""" Training routine for GSNet baseline model. """
-
 import os
-import sys
-import numpy as np
-from datetime import datetime
-import argparse
-import importlib
 import time
+import argparse
+import logging
+from datetime import datetime
 
+import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
-from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-torch.multiprocessing.set_sharing_strategy('file_system')
+from AnyDexGrasp.dataset.multifinger_hand import MultifingerDataset, collate_fn, convert_data_to_gpu
+from AnyDexGrasp.models.minkowski_graspnet import MultifingerGraspSuccessPredictor
+from AnyDexGrasp.utils.solvers import PolyLR
+from AnyDexGrasp.models.loss import MultifingerType1Loss
 
-import MinkowskiEngine as ME
+# Set sharing strategy (keep as is)
+torch.multiprocessing.set_sharing_strategy("file_system")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, 'models'))
-sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-from multifinger_hand import MultifingerDataset, collate_fn, convert_data_to_gpu
-from solvers import PolyLR, StepLR
-from loss import MultifingerType1Loss
-from param import *
-parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_root', default = './', help = 'dataset root')
-parser.add_argument('--model', default='minkowski_graspnet', help='Model file name [default: minkowski_graspnet]')
-parser.add_argument('--log_dir', default='log/Inspire/pose0-11/final', help='Dump dir to save model checkpoint [default: log]')
-parser.add_argument('--gripper_type', default='Allegro', help='gripper_type')
-parser.add_argument('--train_multifinger_type', type=int, default=1, help='multifinger type for training')
-parser.add_argument('--max_epoch', type=int, default=100, help='Epoch to run [default: 18]')
-parser.add_argument('--batch_size', type=int, default=128, help='Batch Size during training [default: 2]')
-parser.add_argument('--learning_rate', type=float, default=0.0005, help='Initial learning rate [default: 0.001]')
-parser.add_argument('--weight_decay', type=float, default=0.0005, help='Optimization L2 weight decay [default: 0]')
-# parser.add_argument('--bn_decay_step', type=int, default=2, help='Period of BN decay (in epochs) [default: 10]')
-# parser.add_argument('--bn_decay_rate', type=float, default=0.5, help='Decay rate for BN decay [default: 0.5]')
-# parser.add_argument('--lr_decay_steps', default='20,40,60', help='When to decay the learning rate (in epochs) [default: 40,60,80]')
-# parser.add_argument('--lr_decay_rates', default='0.1,0.1,0.1', help='Decay rates for lr decay [default: 0.1,0.1,0.1]')
-parser.add_argument('--overwrite', action='store_true', help='Overwrite existing log and dump folders.')
 
-FLAGS = parser.parse_args()
-
-# ------------------------------------------------------------------------- GLOBAL CONFIG BEG
-DATASET_ROOT_TRAIN = os.path.join(FLAGS.dataset_root)
-DATASET_ROOT_TEST = os.path.join(FLAGS.dataset_root)
 NUM_MULTIFINGER_TYPE = 1
 NUM_MULTIFINGER_DEPTH = 4
-NUM_TWO_FINGER_ANGLE = 12
 NUM_TWO_FINGER_DEPTH = 5
-BATCH_SIZE = FLAGS.batch_size
-MAX_EPOCH = FLAGS.max_epoch
-BASE_LEARNING_RATE = FLAGS.learning_rate
-GRIPPER_TYPE = FLAGS.gripper_type
-MULTIFINGER_TYPE = FLAGS.train_multifinger_type
-WEIGHT_DECAY = FLAGS.weight_decay
 
-LOG_DIR = FLAGS.log_dir
+METRIC_KEYS = [
+    "precision_0.5",
+    "recall_0.5",
+    "f1_0.5",
+    "precision_0.7",
+    "recall_0.7",
+    "f1_0.7",
+    "precision_0.9",
+    "recall_0.9",
+    "f1_0.9",
+]
+
+EVERY_INDICATOR_KEYS = ["acc_type_0.5", "acc_type_0.7", "acc_type_0.9"]  # Names for the 3 thresholds
+GRIPPER_METRIC_KEYS = ["precision", "recall", "f1", "tp"]  # Metrics per gripper type
 
 
-# Prepare LOG_DIR and DUMP_DIR
-if os.path.exists(LOG_DIR) and FLAGS.overwrite:
-    print('Log folder %s already exists. Are you sure to overwrite? (Y/N)'%(LOG_DIR))
-    c = input()
-    if c == 'n' or c == 'N':
-        print('Exiting..')
-        exit()
-    elif c == 'y' or c == 'Y':
-        print('Overwrite the files in the log and dump folers...')
-        os.system('rm -r %s'%(LOG_DIR))
+def parse_arguments():
+    """Parses command-line arguments."""
+    parser = argparse.ArgumentParser(description="Training routine for grasp decision models.")
+    parser.add_argument("--gripper_type", default="Inspire", help="Gripper type (e.g., Inspire)")
+    parser.add_argument("--train_multifinger_type", type=int, default=1, help="Multifinger type variant for training")
 
-if not os.path.exists(LOG_DIR):
-    os.makedirs(LOG_DIR)
+    parser.add_argument(
+        "--dataset_root", default="logs/data/decision_model/inspire/obj40", help="Root directory for the dataset"
+    )
+    parser.add_argument("--log_dir", default="logs/test/", help="Directory to save logs and model checkpoints")
 
-LOG_FOUT = open(os.path.join(LOG_DIR, 'log_train.txt'), 'a')
-LOG_FOUT.write(str(FLAGS)+'\n')
-def log_string(out_str):
-    LOG_FOUT.write(out_str+'\n')
-    LOG_FOUT.flush()
-    print(out_str)
+    parser.add_argument("--max_epoch", type=int, default=30, help="Total number of epochs to run")
+    parser.add_argument("--batch_size", type=int, default=128, help="Batch size during training")
+    parser.add_argument("--learning_rate", type=float, default=0.0005, help="Initial learning rate")
+    parser.add_argument("--weight_decay", type=float, default=0.0005, help="Optimizer L2 weight decay")
+    parser.add_argument("--num_workers", type=int, default=6, help="Number of workers for dataloaders")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing log folder.")
 
-# Init datasets and dataloaders 
+    # Checkpointing
+    parser.add_argument(
+        "--checkpoint_metric",
+        default="f1_0.9",
+        help="Metric used to determine the best checkpoint (e.g., f1_0.9, recall_0.7)",
+    )
+
+    args = parser.parse_args()
+    return args
+
+
+def setup_logging(log_dir):
+    """Configures logging to file and console."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    # File handler
+    log_file = os.path.join(log_dir, "log_train.txt")
+    file_handler = logging.FileHandler(log_file, mode="a")  # Append mode
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    logging.info("Logging configured.")
+
+
 def my_worker_init_fn(worker_id):
+    """Worker init function for reproducibility."""
     np.random.seed(np.random.get_state()[1][0] + worker_id)
-    pass
 
-# Create Dataset and Dataloader
-TRAIN_DATASET = MultifingerDataset(root = DATASET_ROOT_TRAIN, multifinger_type = GRIPPER_TYPE, 
-                                   dataset_type = "train", train_type = MULTIFINGER_TYPE, num_multifinger_type = NUM_MULTIFINGER_TYPE)
-TRAIN_DATALOADER = DataLoader(TRAIN_DATASET, batch_size=BATCH_SIZE, shuffle=True,
-                              num_workers=16, worker_init_fn=my_worker_init_fn, collate_fn=collate_fn)
-TEST_DATASET = MultifingerDataset(root = DATASET_ROOT_TEST, multifinger_type = GRIPPER_TYPE, 
-                                  dataset_type = "test", train_type = MULTIFINGER_TYPE, num_multifinger_type = NUM_MULTIFINGER_TYPE)
-TEST_DATALOADER = DataLoader(TEST_DATASET, batch_size=BATCH_SIZE, shuffle=False,
-                             num_workers=16, worker_init_fn=my_worker_init_fn, collate_fn=collate_fn)
-log_string("Train dataset length:{}".format(len(TRAIN_DATASET)))
-log_string("Test dataset length:{}".format(len(TEST_DATASET)))
-# Init the model and optimzier
-MODEL = importlib.import_module(FLAGS.model) # import network module
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-log_string("Use Device:{}".format(device))
-multifinger_net = MODEL.MinkowskiGraspNetMultifingerType1(num_multifinger_type = NUM_MULTIFINGER_TYPE, 
-                                                      num_multifinger_depth = NUM_MULTIFINGER_DEPTH,
-                                                      num_two_finger_angle = NUM_TWO_FINGER_ANGLE,
-                                                      num_two_finger_depth = NUM_TWO_FINGER_DEPTH)
-multifinger_net.to(device)
 
-criterion = MultifingerType1Loss(num_multifinger_type = NUM_MULTIFINGER_TYPE, 
-                                 num_multifinger_depth = NUM_MULTIFINGER_DEPTH,
-                                 num_two_finger_angle = NUM_TWO_FINGER_ANGLE,
-                                 num_two_finger_depth = NUM_TWO_FINGER_DEPTH,
-                                 train_type = MULTIFINGER_TYPE)
-criterion.to(device)
-# Load the Adam optimizer
-optimizer = optim.Adam(multifinger_net.parameters(), lr=BASE_LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+def setup_dataloaders(config):
+    """Creates and returns train and test dataloaders."""
+    logging.info(f"Setting up datasets from root: {config.dataset_root}")
+    train_dataset = MultifingerDataset(
+        root=config.dataset_root,  # Use the same root for train/test as per original code
+        multifinger_type=config.gripper_type,
+        dataset_type="train",
+        train_type=config.train_multifinger_type,
+        num_multifinger_type=NUM_MULTIFINGER_TYPE,
+    )
+    train_dataloader = DataLoader(
+        train_dataset,
+        batch_size=config.batch_size,
+        shuffle=True,
+        num_workers=config.num_workers,
+        worker_init_fn=my_worker_init_fn,
+        collate_fn=collate_fn,
+        pin_memory=True,
+    )
 
-# Load checkpoint if there is any
-it = -1 # for the initialize value of `LambdaLR` and `BNMomentumScheduler`
-start_epoch = 0
+    test_dataset = MultifingerDataset(
+        root=config.dataset_root,  # Use the same root for train/test as per original code
+        multifinger_type=config.gripper_type,
+        dataset_type="test",
+        train_type=config.train_multifinger_type,
+        num_multifinger_type=NUM_MULTIFINGER_TYPE,
+    )
+    test_dataloader = DataLoader(
+        test_dataset,
+        batch_size=config.batch_size,
+        shuffle=False,
+        num_workers=config.num_workers,
+        worker_init_fn=my_worker_init_fn,
+        collate_fn=collate_fn,
+        pin_memory=True,
+    )
+    logging.info(f"Train dataset length: {len(train_dataset)}")
+    logging.info(f"Test dataset length: {len(test_dataset)}")
+    return train_dataloader, test_dataloader
 
-lr_scheduler = PolyLR(optimizer, max_iter=MAX_EPOCH, power=0.99, last_step=start_epoch-1)
-# lr_scheduler = StepLR(optimizer, step_size=10, gamma=0.1, last_epoch=start_epoch-1)
-EPOCH_CNT = 0
 
-# TFBoard Visualizers
-TRAIN_WRITER = SummaryWriter(os.path.join(LOG_DIR, 'train'))
-TEST_WRITER = SummaryWriter(os.path.join(LOG_DIR, 'test'))
-# ------------------------------------------------------------------------- GLOBAL CONFIG END
+def setup_model_criterion_optimizer(config, device):
+    """Initializes the model, criterion, optimizer, and scheduler."""
+    logging.info("Initializing model, criterion, and optimizer...")
+    model = MultifingerGraspSuccessPredictor(
+        num_multifinger_type=NUM_MULTIFINGER_TYPE,
+        num_multifinger_depth=NUM_MULTIFINGER_DEPTH,
+        num_two_finger_depth=NUM_TWO_FINGER_DEPTH,
+    )
+    model.to(device)
 
-def save_model(epoch, mean_indicators, best_indicators):
-    if (mean_indicators[0] - best_indicators[0] > 0.01 and mean_indicators[1] > 0.05) or (abs(mean_indicators[0] - best_indicators[0]) < 0.01 and mean_indicators[1] > best_indicators[1]):
-        best_indicators[:3] = mean_indicators[:3].tolist()
-        if not os.path.exists(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.5')):
-            os.makedirs(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.5'))
-        model_path = os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.5', '0.5_'+str(round(best_indicators[0], 4))+'_'+str(round(best_indicators[1], 4))+'_'+str(round(best_indicators[2], 4))+'_'+str(epoch)+'.pth')
-        torch.save(multifinger_net, model_path)
-    if mean_indicators[3] - best_indicators[3] > 0.01 and mean_indicators[4] > 0.05 or (abs(mean_indicators[3] - best_indicators[3]) < 0.01 and mean_indicators[4] > best_indicators[4]):
-        best_indicators[3:6] = mean_indicators[3:6].tolist()
-        if not os.path.exists(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.7')):
-            os.makedirs(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.7'))
-        model_path = os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.7', '0.7_'+str(round(best_indicators[3], 4))+'_'+str(round(best_indicators[4], 4))+'_'+str(round(best_indicators[5], 4))+'_'+str(epoch)+'.pth')
-        torch.save(multifinger_net, model_path)
-    if mean_indicators[6] - best_indicators[6] > 0.01 and mean_indicators[7] > 0.05 or (abs(mean_indicators[6] - best_indicators[6]) < 0.01 and mean_indicators[7] > best_indicators[7]):
-        best_indicators[6:9] = mean_indicators[6:9].tolist()
-        if not os.path.exists(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.9')):
-            os.makedirs(os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.9'))
-        model_path = os.path.join(LOG_DIR, str(MULTIFINGER_TYPE), '0.9', '0.9_'+str(round(best_indicators[6], 4))+'_'+str(round(best_indicators[7], 4))+'_'+str(round(best_indicators[8], 4))+'_'+str(epoch)+'.pth')       
-        torch.save(multifinger_net, model_path)
-    return best_indicators
+    criterion = MultifingerType1Loss(
+        num_multifinger_type=NUM_MULTIFINGER_TYPE,
+        num_multifinger_depth=NUM_MULTIFINGER_DEPTH,
+        num_two_finger_depth=NUM_TWO_FINGER_DEPTH,
+        train_type=config.train_multifinger_type,
+    )
+    criterion.to(device)
 
-def train_one_epoch():
-    # adjust_learning_rate(optimizer, EPOCH_CNT)
-    # bnm_scheduler.step() # decay BN momentum
-    # set model to training mode
-    multifinger_net.train()
-    data_time = 0.
-    net_time = 0.
-    tic = time.time()
-    all_losses = []
-    weights = []
-    pres = []
-    recalls = []
-    f1s = []
-    indicator_detachs = []
-    every_indicator_detachs = []
-    for batch_idx, batch_data_label in enumerate(TRAIN_DATALOADER):
-        batch_data_label = convert_data_to_gpu(batch_data_label)
-        if batch_data_label["result"].shape[0] == 1:
+    optimizer = optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+
+    # Assuming start_epoch is 0 for now, adjust if checkpoint loading is added
+    lr_scheduler = PolyLR(optimizer, max_iter=config.max_epoch, power=0.99, last_step=-1)
+
+    logging.info("Model, criterion, and optimizer initialized.")
+    return model, criterion, optimizer, lr_scheduler
+
+
+def aggregate_metrics(batch_metrics_list, batch_every_metrics_list, batch_weights):
+    """Aggregates metrics over batches using weighted average."""
+    weights = np.array(batch_weights)
+    weights = weights / np.sum(weights)
+
+    mean_indicators = np.sum(weights.reshape((-1, 1)) * np.array(batch_metrics_list), axis=0)
+    mean_every_indicators = np.sum(weights.reshape((-1, 1, 1, 1)) * np.array(batch_every_metrics_list), axis=0)
+
+    metrics_dict = {key: val for key, val in zip(METRIC_KEYS, mean_indicators)}
+    # Add detailed metrics per gripper type if needed
+    # for thresh_idx, thresh_key in enumerate(EVERY_INDICATOR_KEYS):
+    #     for mt in range(mean_every_indicators.shape[2]): # num_multifinger_type
+    #         gripper_metrics = mean_every_indicators[thresh_idx, mt, :]
+    #         for metric_idx, metric_key in enumerate(GRIPPER_METRIC_KEYS):
+    #              metrics_dict[f"{thresh_key}_gripper{mt}_{metric_key}"] = gripper_metrics[metric_idx]
+
+    # Simplified version focusing on 0.9 threshold as in original logging
+    for mt in range(mean_every_indicators.shape[1]):  # num_multifinger_type
+        gripper_metrics_09 = mean_every_indicators[2][mt]  # Index 2 corresponds to 0.9 threshold
+        for metric_idx, metric_key in enumerate(GRIPPER_METRIC_KEYS):
+            metrics_dict[f"gripper{mt}_type{config.train_multifinger_type}_{metric_key}_0.9"] = gripper_metrics_09[
+                metric_idx
+            ]
+
+    return metrics_dict
+
+
+def run_epoch(model, dataloader, criterion, optimizer, device, epoch, is_training, writer, config):
+    """Runs a single epoch of training or evaluation."""
+    if is_training:
+        model.train()
+        prefix = "train"
+    else:
+        model.eval()
+        prefix = "eval"
+
+    epoch_losses = []
+    epoch_indicator_detachs = []
+    epoch_every_indicator_detachs = []
+    epoch_batch_sizes = []
+    data_time, net_time = 0.0, 0.0
+    batch_start_time = time.time()
+
+    for batch_idx, batch_data_label in enumerate(dataloader):
+        # Measure data loading time
+        toc = time.time()
+        data_time += toc - batch_start_time
+
+        # Skip small batches in training if they cause issues (e.g., BatchNorm)
+        batch_size = batch_data_label["result"].shape[0]
+        if is_training and batch_size <= 1:
+            logging.warning(f"Skipping training batch {batch_idx} with size {batch_size}")
+            batch_start_time = time.time()  # Reset timer for next batch
             continue
-        weights.append(batch_data_label["result"].shape[0])
-        toc = time.time()
-        data_time += toc - tic
-        tic = time.time()
+
+        batch_data_label = convert_data_to_gpu(batch_data_label, device)
+        epoch_batch_sizes.append(batch_size)
+
         # Forward pass
-        end_points = {}
-        end_points["two_fingers_pose_angle_type"] = batch_data_label["two_fingers_pose_angle_type"]
-        end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
-        end_points["multifinger_pose_finger_type"] = batch_data_label["multifinger_pose_finger_type"]
-        end_points["multifinger_pose_depth_type"] = batch_data_label["multifinger_pose_depth_type"] 
+        net_start_time = time.time()
+        with torch.set_grad_enabled(is_training):
+            grasp_preds_five_hand = model(batch_data_label["grasp_preds_features"])
 
-        end_points["grasp_preds_features"] = batch_data_label['grasp_preds_features']
-        end_points["if_flip"] = batch_data_label['if_flip']
+            # Prepare end_points dictionary, include necessary data only
+            end_points = {}
+            end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
+            end_points["multifinger_pose_finger_type"] = batch_data_label["multifinger_pose_finger_type"]
+            end_points["multifinger_pose_depth_type"] = batch_data_label["multifinger_pose_depth_type"]
+            end_points["grasp_preds_features"] = batch_data_label["grasp_preds_features"]
+            end_points["if_flip"] = batch_data_label["if_flip"]
+            end_points["result"] = batch_data_label["result"]  # Grasp success 1, fail 0
 
-        grasp_preds, end_points = multifinger_net(end_points)
-    
-        end_points["result"] = batch_data_label["result"]
-        loss, indicator, every_indicator = criterion(end_points)
-        indicator_detach = []
-        for item in indicator:
-            indicator_detach.append(item.detach().item())
-        indicator_detachs.append(indicator_detach)
+            end_points["stage4_grasp_preds_five_hand"] = grasp_preds_five_hand
+
+            loss, indicator, every_indicator = criterion(end_points)
+
+        # Backward pass and optimization
+        if is_training:
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        net_time += time.time() - net_start_time  # Measure network/computation time
+
+        # Store metrics
+        epoch_losses.append(loss.item())
+        # Detach and move to CPU *before* appending to avoid memory leaks
+        indicator_detach = [item.detach().cpu().item() for item in indicator]
+        epoch_indicator_detachs.append(indicator_detach)
 
         every_indicator_detach = []
         for acc_type in every_indicator:
             gripper_types = []
             for gripper_type in acc_type:
-                accs = []
-                for item in gripper_type:
-                    accs.append(item.detach().item()) 
+                accs = [item.detach().cpu().item() for item in gripper_type]
                 gripper_types.append(accs)
             every_indicator_detach.append(gripper_types)
-        every_indicator_detachs.append(every_indicator_detach)
+        epoch_every_indicator_detachs.append(every_indicator_detach)
 
-        loss.backward()
-        all_losses.append(loss.item())
-        optimizer.step()
-        optimizer.zero_grad()
-        toc = time.time()
-        net_time += toc - tic
+        # Log batch info periodically (optional)
+        # if (batch_idx + 1) % 100 == 0:
+        #     logging.debug(f"Epoch {epoch} [{prefix}] Batch {batch_idx+1}/{len(dataloader)} Loss: {loss.item():.4f}")
 
-        batch_interval = 1000
-        if (batch_idx+1) % batch_interval == 0:
-            log_string(' ---- batch: %03d ----' % (batch_idx+1))
-            log_string("Train loss:{}".format(loss))
-            data_time = 0.
-            net_time = 0.
-        tic = time.time()
+        batch_start_time = time.time()  # Reset timer for next data loading phase
 
-    weights = np.array(weights)
-    weights = weights / np.sum(weights)
-    mean_loss = np.sum(weights * np.array(all_losses))
-    mean_indicators = np.sum(weights.reshape((-1,1)) * np.array(indicator_detachs), axis=0)
-    mean_every_indicators = np.sum(weights.reshape((-1,1,1,1)) * np.array(every_indicator_detachs), axis=0)
+    # Aggregate metrics for the epoch
+    mean_loss = np.mean(epoch_losses)  # Simple mean for loss
+    metrics = aggregate_metrics(epoch_indicator_detachs, epoch_every_indicator_detachs, epoch_batch_sizes)
+    metrics["loss"] = mean_loss
 
-    log_string("===== {} =====".format(MULTIFINGER_TYPE))
-    log_string("Mean Train loss:{}".format(mean_loss))
-    log_string("Mean Train @0.5 precision:{}, recall:{}, f1:{}".format(mean_indicators[0], mean_indicators[1], mean_indicators[2]))
-    log_string("Mean Train @0.7 precision:{}, recall:{}, f1:{}".format(mean_indicators[3], mean_indicators[4], mean_indicators[5]))
-    log_string("Mean Train @0.9 precision:{}, recall:{}, f1:{}".format(mean_indicators[6], mean_indicators[7], mean_indicators[8]))
+    # Log epoch summary
+    logging.info(f"Epoch {epoch} [{prefix.upper()}] Avg Loss: {mean_loss:.4f}")
+    logging.info(
+        f"Epoch {epoch} [{prefix.upper()}] Metrics @ 0.5 - P: {metrics['precision_0.5']:.4f}, R: {metrics['recall_0.5']:.4f}, F1: {metrics['f1_0.5']:.4f}"
+    )
+    logging.info(
+        f"Epoch {epoch} [{prefix.upper()}] Metrics @ 0.7 - P: {metrics['precision_0.7']:.4f}, R: {metrics['recall_0.7']:.4f}, F1: {metrics['f1_0.7']:.4f}"
+    )
+    logging.info(
+        f"Epoch {epoch} [{prefix.upper()}] Metrics @ 0.9 - P: {metrics['precision_0.9']:.4f}, R: {metrics['recall_0.9']:.4f}, F1: {metrics['f1_0.9']:.4f}"
+    )
+    # Log per-gripper metrics (@0.9 simplified)
     for mt in range(NUM_MULTIFINGER_TYPE):
-        log_string("Mean Gripper Type:{}{}, Train @0.9 precision:{}, recall:{}, f1:{}, tp:{}".format(
-            GRIPPER_TYPE, MULTIFINGER_TYPE, mean_every_indicators[2][mt][0], 
-            mean_every_indicators[2][mt][1], mean_every_indicators[2][mt][2], mean_every_indicators[2][mt][3]))
-    log_string("===== =====")
-    TRAIN_WRITER.add_scalar("train/loss", mean_loss, EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("leraning rate", lr_scheduler.get_last_lr()[0], EPOCH_CNT)
+        logging.info(
+            f"  Gripper {mt} (Type {config.train_multifinger_type}) @ 0.9 - P: {metrics[f'gripper{mt}_type{config.train_multifinger_type}_precision_0.9']:.4f}, "
+            f"R: {metrics[f'gripper{mt}_type{config.train_multifinger_type}_recall_0.9']:.4f}, "
+            f"F1: {metrics[f'gripper{mt}_type{config.train_multifinger_type}_f1_0.9']:.4f}, "
+            f"TP: {metrics[f'gripper{mt}_type{config.train_multifinger_type}_tp_0.9']:.1f}"
+        )  # TP might be a count
 
-    TRAIN_WRITER.add_scalar("train/precision_0.5", mean_indicators[0], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/recall_0.5", mean_indicators[1], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/f1_0.5", mean_indicators[2], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/precision_0.7", mean_indicators[3], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/recall_0.7", mean_indicators[4], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/f1_0.7", mean_indicators[5], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/precision_0.9", mean_indicators[6], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/recall_0.9", mean_indicators[7], EPOCH_CNT)
-    TRAIN_WRITER.add_scalar("train/f1_0.9", mean_indicators[8], EPOCH_CNT)
+    # Log to TensorBoard
+    writer.add_scalar(f"{prefix}/loss", metrics["loss"], epoch)
+    for key in METRIC_KEYS:
+        writer.add_scalar(f"{prefix}/{key}", metrics[key], epoch)
+    # Log per-gripper metrics (@0.9 simplified)
     for mt in range(NUM_MULTIFINGER_TYPE):
-        TRAIN_WRITER.add_scalar("train_{}_precision/{}/precision_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][0], EPOCH_CNT)
-        TRAIN_WRITER.add_scalar("train_{}_call/{}/recall_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][1], EPOCH_CNT)
-        TRAIN_WRITER.add_scalar("train__tp{}/{}/tp_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][3], EPOCH_CNT)
+        writer.add_scalar(
+            f"{prefix}/{config.gripper_type}_{config.train_multifinger_type}/gripper{mt}_precision_0.9",
+            metrics[f"gripper{mt}_type{config.train_multifinger_type}_precision_0.9"],
+            epoch,
+        )
+        writer.add_scalar(
+            f"{prefix}/{config.gripper_type}_{config.train_multifinger_type}/gripper{mt}_recall_0.9",
+            metrics[f"gripper{mt}_type{config.train_multifinger_type}_recall_0.9"],
+            epoch,
+        )
+        writer.add_scalar(
+            f"{prefix}/{config.gripper_type}_{config.train_multifinger_type}/gripper{mt}_f1_0.9",
+            metrics[f"gripper{mt}_type{config.train_multifinger_type}_f1_0.9"],
+            epoch,
+        )
+        writer.add_scalar(
+            f"{prefix}/{config.gripper_type}_{config.train_multifinger_type}/gripper{mt}_tp_0.9",
+            metrics[f"gripper{mt}_type{config.train_multifinger_type}_tp_0.9"],
+            epoch,
+        )
 
-def eval_one_epoch():
-    # adjust_learning_rate(optimizer, EPOCH_CNT)
-    # bnm_scheduler.step() # decay BN momentum
-    # set model to training mode
-    multifinger_net.eval()
-    data_time = 0.
-    net_time = 0.
-    tic = time.time()
-    all_losses = []
-    weights = []
-    pres = []
-    recalls = []
-    f1s = []
-    indicator_detachs = []
-    every_indicator_detachs = []
-    for batch_idx, batch_data_label in enumerate(TEST_DATALOADER):
-        batch_data_label = convert_data_to_gpu(batch_data_label)
-        weights.append(batch_data_label["result"].shape[0])
-        toc = time.time()
-        data_time += toc - tic
-        tic = time.time()
-        # Forward pass
-        end_points = {}
-        end_points["two_fingers_pose_angle_type"] = batch_data_label["two_fingers_pose_angle_type"]
-        end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
-        end_points["multifinger_pose_finger_type"] = batch_data_label["multifinger_pose_finger_type"]
-        end_points["multifinger_pose_depth_type"] = batch_data_label["multifinger_pose_depth_type"] 
+    if is_training:
+        writer.add_scalar("learning_rate", optimizer.param_groups[0]["lr"], epoch)
+        logging.info(f"Epoch {epoch} Data Time: {data_time:.2f}s, Net Time: {net_time:.2f}s")
 
-        end_points["grasp_preds_features"] = batch_data_label['grasp_preds_features']
-        end_points["if_flip"] = batch_data_label['if_flip']
+    return metrics
 
-        grasp_preds, end_points = multifinger_net(end_points)
-     
-        end_points["result"] = batch_data_label["result"]
-        loss, indicator, every_indicator = criterion(end_points)
-        indicator_detach = []
-        for item in indicator:
-            indicator_detach.append(item.detach().item())
-        indicator_detachs.append(indicator_detach)
 
-        every_indicator_detach = []
-        for acc_type in every_indicator:
-            gripper_types = []
-            for gripper_type in acc_type:
-                accs = []
-                for item in gripper_type:
-                    accs.append(item.detach().item()) 
-                gripper_types.append(accs)
-            every_indicator_detach.append(gripper_types)
-        every_indicator_detachs.append(every_indicator_detach)
+# TODO: check how the files are saved
+def save_checkpoint(state, is_best, log_dir, filename_prefix="checkpoint"):
+    """Saves model checkpoint."""
+    filepath = os.path.join(log_dir, f"{filename_prefix}_latest.pth")
+    torch.save(state, filepath)
+    logging.debug(f"Saved latest checkpoint to {filepath}")
+    if is_best:
+        best_filepath = os.path.join(log_dir, f"{filename_prefix}_best.pth")
+        torch.save(state, best_filepath)
+        logging.info(f"Saved best checkpoint to {best_filepath}")
 
-        all_losses.append(loss.item())
 
-    weights = np.array(weights)
-    weights = weights / np.sum(weights)
-    mean_loss = np.sum(weights * np.array(all_losses))
-    mean_indicators = np.sum(weights.reshape((-1,1)) * np.array(indicator_detachs), axis=0)
-    mean_every_indicators = np.sum(weights.reshape((-1,1,1,1)) * np.array(every_indicator_detachs), axis=0)
+def train(config):
+    """Main training loop."""
+    start_time = time.time()
 
-    log_string("===== {} =====".format(MULTIFINGER_TYPE))
-    log_string("Mean Test loss:{}".format(mean_loss))
-    log_string("Mean Test @0.5 precision:{}, recall:{}, f1:{}".format(mean_indicators[0], mean_indicators[1], mean_indicators[2]))
-    log_string("Mean Test @0.7 precision:{}, recall:{}, f1:{}".format(mean_indicators[3], mean_indicators[4], mean_indicators[5]))
-    log_string("Mean Test @0.9 precision:{}, recall:{}, f1:{}".format(mean_indicators[6], mean_indicators[7], mean_indicators[8]))
-    for mt in range(NUM_MULTIFINGER_TYPE):
-        log_string("Mean Gripper Type:{}{}, Test @0.9 precision:{}, recall:{}, f1:{}, tp:{}".format(
-            GRIPPER_TYPE, MULTIFINGER_TYPE, mean_every_indicators[2][mt][0], 
-            mean_every_indicators[2][mt][1], mean_every_indicators[2][mt][2], mean_every_indicators[2][mt][3]))
-    log_string("===== =====")
-    TEST_WRITER.add_scalar("test/loss", mean_loss, EPOCH_CNT)
- 
-    TEST_WRITER.add_scalar("test/precision_0.5", mean_indicators[0], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/recall_0.5", mean_indicators[1], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/f1_0.5", mean_indicators[2], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/precision_0.7", mean_indicators[3], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/recall_0.7", mean_indicators[4], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/f1_0.7", mean_indicators[5], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/precision_0.9", mean_indicators[6], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/recall_0.9", mean_indicators[7], EPOCH_CNT)
-    TEST_WRITER.add_scalar("test/f1_0.9", mean_indicators[8], EPOCH_CNT)
-    for mt in range(NUM_MULTIFINGER_TYPE):
-        TEST_WRITER.add_scalar("test_{}_precision/{}/precision_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][0], EPOCH_CNT)
-        TEST_WRITER.add_scalar("test_{}_recall/{}/recall_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][1], EPOCH_CNT)
-        TEST_WRITER.add_scalar("test_{}_tp/{}/tp_0.9".format(GRIPPER_TYPE, MULTIFINGER_TYPE), mean_every_indicators[2][mt][3], EPOCH_CNT)
-    return mean_indicators
+    # --- Initial Setup ---
+    if os.path.exists(config.log_dir) and config.overwrite:
+        logging.warning(f"Log directory {config.log_dir} exists.")
+        if input("Overwrite? (Y/N): ").upper() != "Y":
+            logging.info("Exiting.")
+            exit()
+        logging.info("Overwriting existing log directory.")
+        os.system(f"rm -r {config.log_dir}")  # Use with caution!
 
-def train(start_epoch):
-    global EPOCH_CNT 
-    min_loss = 1e10
-    loss = 0
-    best_indicators = [0., 0., 0., 0., 0., 0., 0., 0., 0.]
-    torch.set_printoptions(5)
-    for epoch in range(start_epoch, MAX_EPOCH):
-        EPOCH_CNT = epoch
-        log_string('**** TRAIN EPOCH %03d ****' % (epoch))
-        log_string('Current learning rate: %f'%(lr_scheduler.get_last_lr()[0]))
-        log_string(str(datetime.now()))
-        # Reset numpy seed.
-        # REF: https://github.com/pytorch/pytorch/issues/5059
-        # Train
-        np.random.seed()
-        train_one_epoch()
-        log_string(" ---- Evaluating one epoch ---- ")
-        mean_indicators = eval_one_epoch()
+    if not os.path.exists(config.log_dir):
+        os.makedirs(config.log_dir)
+
+    setup_logging(config.log_dir)  # Configure logging first
+    logging.info("Starting training process...")
+    logging.info(f"Script arguments: {config}")
+    logging.info(f"Current time: {datetime.now()}")
+    logging.info(f"PyTorch Version: {torch.__version__}")
+    logging.info(f"CUDA Available: {torch.cuda.is_available()}")
+
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Using device: {device}")
+
+    # Setup components
+    train_loader, test_loader = setup_dataloaders(config)
+    model, criterion, optimizer, lr_scheduler = setup_model_criterion_optimizer(config, device)
+
+    # Tensorboard writers
+    train_writer = SummaryWriter(os.path.join(config.log_dir, "train"))
+    test_writer = SummaryWriter(os.path.join(config.log_dir, "test"))
+
+    # --- Training Loop ---
+    best_metric_val = -1.0  # Initialize with a value lower than any possible metric
+
+    logging.info(f"Starting training for {config.max_epoch} epochs.")
+    torch.set_printoptions(precision=5)  # Set print precision for tensors
+
+    for epoch in range(config.max_epoch):
+        logging.info(f"==== EPOCH {epoch}/{config.max_epoch - 1} ====")
+        logging.info(f"Current learning rate: {lr_scheduler.get_last_lr()[0]:.6f}")
+
+        # Train one epoch
+        _ = run_epoch(
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            epoch,
+            is_training=True,
+            writer=train_writer,
+            config=config,
+        )
+
+        # Evaluate one epoch
+        eval_metrics = run_epoch(
+            model, test_loader, criterion, None, device, epoch, is_training=False, writer=test_writer, config=config
+        )
+
+        # Update learning rate
         lr_scheduler.step()
-        best_indicators = save_model(epoch, mean_indicators, best_indicators)
-        
-        print('best indicators: ', best_indicators)
+
+        # Save checkpoint logic
+        try:
+            current_metric_val = eval_metrics[config.checkpoint_metric]
+        except KeyError:
+            logging.error(
+                f"Checkpoint metric '{config.checkpoint_metric}' not found in evaluation metrics. Available: {list(eval_metrics.keys())}"
+            )
+            logging.error("Using 'f1_0.9' as fallback checkpoint metric.")
+            config.checkpoint_metric = "f1_0.9"  # Fallback
+            current_metric_val = eval_metrics.get(config.checkpoint_metric, -1.0)
+
+        is_best = current_metric_val > best_metric_val
+        if is_best:
+            best_metric_val = current_metric_val
+            logging.info(
+                f"** New best performance on metric '{config.checkpoint_metric}': {best_metric_val:.4f} at epoch {epoch}"
+            )
+
+        save_checkpoint(
+            {
+                "epoch": epoch + 1,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": lr_scheduler.state_dict(),
+                "best_metric_val": best_metric_val,
+                "config": config,
+            },
+            is_best,
+            config.log_dir,
+        )
+
+        logging.info(f"Best evaluation metric ({config.checkpoint_metric}) so far: {best_metric_val:.4f}")
+
+    # --- Cleanup ---
+    train_writer.close()
+    test_writer.close()
+    end_time = time.time()
+    logging.info(f"Training finished in {(end_time - start_time) / 3600:.2f} hours.")
+    logging.info(f"Final best evaluation metric ({config.checkpoint_metric}): {best_metric_val:.4f}")
 
 
-
-if __name__=='__main__':
-    train(start_epoch)
+if __name__ == "__main__":
+    config = parse_arguments()
+    train(config)
