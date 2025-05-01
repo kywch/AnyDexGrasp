@@ -1,146 +1,77 @@
-import os
-import json
 import copy
-import glob
-import random
-import collections.abc as container_abcs
+from collections.abc import Sequence, Mapping
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 
-MAX_GRIPPER_WIDTH = 0.1
-MAX_MU = 1.0
-MIN_MU = 0.1
-MAX_GRASP_SCORE = np.log(MAX_MU / MIN_MU)
-CONVERT_TO_NEW_DEIVCE = [
-    "object_poses_list",
-    "grasp_points_list",
-    "grasp_widths_list",
-    "grasp_labels_list",
-    "grasp_heatmap_list",
-    "grasp_view_heatmap_list",
-    "grasp_heatmap_raw_list",
-    "grasp_collision_list",
-]
-DEPTH_FACTOR = 1000.0
+def filter_json_data(data, gripper_type, grasp_type, num_depth=4):
+    filtered_data = {}
 
+    if gripper_type.lower() == "inspire":
+        finger_type_key = "InspiredHandR_pose_finger_type"
+        depth_type_key = "InspiredHandR_pose_depth_type"
+    elif gripper_type.lower() == "dh3":
+        finger_type_key = "DH3_pose_finger_type"
+        depth_type_key = "DH3_pose_depth_type"
+    elif gripper_type.lower() == "allegro":
+        finger_type_key = "Allegro_pose_finger_type"
+        depth_type_key = "Allegro_pose_depth_type"
+    else:
+        raise ValueError(f"Unknown gripper type: {gripper_type}")
 
-class CameraInfo:
-    def __init__(self, width, height, fx, fy, cx, cy, scale):
-        self.width = width
-        self.height = height
-        self.fx = fx
-        self.fy = fy
-        self.cx = cx
-        self.cy = cy
-        self.scale = scale
+    trial_stats = {}
+    for i in range(num_depth):
+        trial_stats[i] = {
+            "count": 0,
+            "success": 0,
+            "fail": 0,
+        }
+
+    for trial_key, trial_dict in data.items():
+        # Keep the trail data if both gripper_type and grasp_type match
+        if (
+            finger_type_key in trial_dict
+            and trial_dict[finger_type_key] == grasp_type
+            and trial_dict[depth_type_key] in trial_stats
+        ):
+            trial_dict["multifinger_pose_finger_type"] = trial_dict[finger_type_key]
+            trial_dict["multifinger_pose_depth_type"] = trial_dict[depth_type_key]
+            filtered_data[trial_key] = trial_dict
+
+            trial_stats[trial_dict["multifinger_pose_depth_type"]]["count"] += 1
+            if trial_dict["result"]:
+                trial_stats[trial_dict["multifinger_pose_depth_type"]]["success"] += 1
+            else:
+                trial_stats[trial_dict["multifinger_pose_depth_type"]]["fail"] += 1
+
+    return filtered_data, trial_stats
 
 
 class MultifingerDataset(Dataset):
-    def __init__(self, root, multifinger_type="Inspire", dataset_type="train", train_type=0, num_multifinger_type=1):
-        self.root = root
-        self.multifinger_type = multifinger_type
-        self.dataset_type = dataset_type
-        self.train_type = train_type
-        self.num_multifinger_type = num_multifinger_type
-
-        # Check if there are multiple json files in the directory
-        json_files = glob.glob(os.path.join(root, "*.json"))
-        if len(json_files) == 1:
-            information_json_file_name = json_files[0]
-        elif self.dataset_type in ["train", "test"]:
-            for file in json_files:
-                if self.dataset_type in file:
-                    information_json_file_name = file
-                    break
-        else:
-            raise ValueError(
-                'Could not find valid json, or dataset type must be "test" or "train". Manually check the file.'
-            )
-
-        with open(information_json_file_name) as f:
-            self.informations = json.load(f)
-
-        true_number, false_number, grasp_type, pose_excluded = self.get_true_false_rate()
-        print(self.dataset_type, " num, true, false, rate: ", true_number, false_number, true_number / false_number)
-        print("data grasp type distribution: \n", grasp_type)
-
-        datas = list(self.informations.keys())
-        self.data = []
-        data_num = 0
-        for dt in datas:
-            if dt not in pose_excluded:
-                self.data.append(dt)
-                data_num += 1
-                if self.dataset_type == "train" and data_num == 100:
-                    break
-        print("len of dataset is:", len(self.data))
-        random.shuffle(self.data)
-
-    def get_true_false_rate(self):
-        true_number = 0
-        false_number = 0
-        grasp_type = [[0, 0, 0] for _ in range(4)]
-        pose_excluded = {""}
-        print(self.train_type)
-        for k, v in self.informations.items():
-            if self.multifinger_type == "Inspire":
-                gripper_type = v["InspiredHandR_pose_finger_type"]
-                depth_type = v["InspiredHandR_pose_depth_type"]
-            elif self.multifinger_type == "DH3":
-                gripper_type = v["DH3_pose_finger_type"]
-                depth_type = v["DH3_pose_depth_type"]
-            elif self.multifinger_type == "Allegro":
-                gripper_type = v["Allegro_pose_finger_type"]
-                depth_type = v["Allegro_pose_depth_type"]
-
-            if int(gripper_type) != int(self.train_type):
-                pose_excluded.add(k)
-                continue
-
-            result = v["result"]
-            if result:
-                grasp_type[depth_type][0] += 1
-            else:
-                grasp_type[depth_type][1] += 1
-            grasp_type[depth_type][2] += 1
-            result = v["result"]
-            if result:
-                true_number += 1
-            else:
-                false_number += 1
-        return true_number, false_number, grasp_type, pose_excluded
+    def __init__(self, data_dict):
+        # Assume that data_dict is filtered, and using all the keys
+        self.data = data_dict
+        self.data_keys = list(data_dict.keys())
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
-        item_dir = self.data[index]
-
-        information = self.informations[item_dir]
+        item_key = self.data_keys[index]
+        information = self.data[item_key]
 
         ret_dict = {}
 
         ret_dict["two_fingers_pose_angle_type"] = np.array([information["two_fingers_pose_angle_type"]], dtype=np.int32)
         ret_dict["two_fingers_pose_depth_type"] = np.array([information["two_fingers_pose_depth_type"]], dtype=np.int32)
-        if self.multifinger_type == "Inspire":
-            ret_dict["multifinger_pose_finger_type"] = np.array(
-                [information["InspiredHandR_pose_finger_type"]], dtype=np.int32
-            )
-            ret_dict["multifinger_pose_depth_type"] = np.array(
-                [information["InspiredHandR_pose_depth_type"]], dtype=np.int32
-            )
 
-        elif self.multifinger_type == "DH3":
-            ret_dict["multifinger_pose_finger_type"] = np.array([information["DH3_pose_finger_type"]], dtype=np.int32)
-            ret_dict["multifinger_pose_depth_type"] = np.array([information["DH3_pose_depth_type"]], dtype=np.int32)
-        elif self.multifinger_type == "Allegro":
-            ret_dict["multifinger_pose_finger_type"] = np.array(
-                [information["Allegro_pose_finger_type"]], dtype=np.int32
-            )
-            ret_dict["multifinger_pose_depth_type"] = np.array([information["Allegro_pose_depth_type"]], dtype=np.int32)
+        # Use the standardized keys directly, as created by filter_json_data
+        ret_dict["multifinger_pose_finger_type"] = np.array(
+            [information["multifinger_pose_finger_type"]], dtype=np.int32
+        )
+        ret_dict["multifinger_pose_depth_type"] = np.array([information["multifinger_pose_depth_type"]], dtype=np.int32)
 
         ret_dict["if_flip"] = np.array([information["if_flip"]]).astype(np.int32)  # 1 for Flip and 0 for not
         grasp_preds_features = np.array(information["grasp_preds_features"], dtype=np.float32)[:480]  # [480]
@@ -155,12 +86,23 @@ class MultifingerDataset(Dataset):
             grasp_preds_features[240:360] = last_half_widths
             grasp_preds_features[360:480] = first_half_widths
 
-        new_type = 12 + information["two_fingers_pose_angle_type"] * 2
+        # Use the angle type directly (The provided data has 0-11 range, and theoretically 0-23)
+        # The original calculation '12 + angle_type * 2' seems incorrect (suspected by gemini),
+        # and will result in out-of-index errors for the angle_type >= 19
+        # new_type = 12 + information["two_fingers_pose_angle_type"] * 2  # original
+
+        # NOTE: this may affect the model performance
+        new_angle_type = information["two_fingers_pose_angle_type"]
+
+        # The code performs the cyclic rotation independently on the first 240 elements (scores) and the next 240 elements (widths).
+        # This rotation aims to create a canonical representation of the features relative to the predicted grasp angle (two_fingers_pose_angle_type).
+        # By rotating the features so that the data corresponding to the predicted angle always starts at index 0 (within the score and width blocks),
+        # the subsequent network layers might learn patterns more easily, as they don't need to be invariant to the absolute angle index.
         grasp_preds_features_rot = np.zeros(grasp_preds_features.shape, dtype=np.float32)
-        grasp_preds_features_rot[: 240 - new_type * 5] = grasp_preds_features[new_type * 5 : 240]
-        grasp_preds_features_rot[240 - new_type * 5 : 240] = grasp_preds_features[0 : new_type * 5]
-        grasp_preds_features_rot[240 : 480 - new_type * 5] = grasp_preds_features[240 + new_type * 5 : 480]
-        grasp_preds_features_rot[480 - new_type * 5 : 480] = grasp_preds_features[240 : 240 + new_type * 5]
+        grasp_preds_features_rot[: 240 - new_angle_type * 5] = grasp_preds_features[new_angle_type * 5 : 240]
+        grasp_preds_features_rot[240 - new_angle_type * 5 : 240] = grasp_preds_features[0 : new_angle_type * 5]
+        grasp_preds_features_rot[240 : 480 - new_angle_type * 5] = grasp_preds_features[240 + new_angle_type * 5 : 480]
+        grasp_preds_features_rot[480 - new_angle_type * 5 : 480] = grasp_preds_features[240 : 240 + new_angle_type * 5]
 
         ret_dict["grasp_preds_features"] = grasp_preds_features_rot[:480]  # [480]
 
@@ -171,9 +113,9 @@ class MultifingerDataset(Dataset):
 def collate_fn(batch):
     if type(batch[0]).__module__ == "numpy":
         return [torch.from_numpy(b) for b in batch]
-    elif isinstance(batch[0], container_abcs.Sequence):
+    elif isinstance(batch[0], Sequence):
         return [[torch.from_numpy(sample) for sample in b] for b in batch]
-    elif isinstance(batch[0], container_abcs.Mapping):
+    elif isinstance(batch[0], Mapping):
         ret_dict = {key: collate_fn([d[key] for d in batch]) for key in batch[0]}
 
         for key in ret_dict.keys():
@@ -184,14 +126,36 @@ def collate_fn(batch):
 
 
 def convert_data_to_device(data, device):
-    if isinstance(data, container_abcs.Sequence):
-        return [convert_data_to_device(data[i], device) for i in range(len(data))]
-    else:
+    """
+    Recursively moves tensors within nested structures (lists, tuples, dicts)
+    to the specified device. Skips non-tensor elements.
+    """
+    if isinstance(data, torch.Tensor):
         return data.to(device)
+    elif isinstance(data, Mapping): # Handle dictionaries
+        return {k: convert_data_to_device(v, device) for k, v in data.items()}
+    elif isinstance(data, Sequence) and not isinstance(data, str): # Handle lists/tuples but not strings
+        return [convert_data_to_device(item, device) for item in data]
+    else:
+        # Return data as is if it's not a tensor, dict, or sequence (e.g., int, float, str)
+        return data
 
 
-def convert_data_to_gpu(data):
-    ret_dict = dict()
-    for key in data.keys():
-        ret_dict[key] = convert_data_to_device(data[key], "cuda:0")
-    return ret_dict
+def convert_data_to_gpu(data, device=None):
+    """
+    Moves all tensor values within a dictionary (potentially nested) to the
+    specified device (defaults to 'cuda:0').
+    """
+    if device is None:
+        # Default to the first CUDA device if available, otherwise CPU
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    elif isinstance(device, str):
+        # Convert string device name to torch.device object
+        device = torch.device(device)
+
+    # Ensure data is a dictionary before iterating
+    if not isinstance(data, Mapping):
+        raise TypeError(f"Expected data to be a dictionary (Mapping), but got {type(data)}")
+
+    # Use the recursive function to handle nested structures
+    return convert_data_to_device(data, device)

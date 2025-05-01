@@ -1,5 +1,6 @@
 import os
 import time
+import json
 import argparse
 import logging
 from datetime import datetime
@@ -7,10 +8,11 @@ from datetime import datetime
 import numpy as np
 import torch
 import torch.optim as optim
+import torch.utils.data
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from AnyDexGrasp.dataset.multifinger_hand import MultifingerDataset, collate_fn, convert_data_to_gpu
+from AnyDexGrasp.dataset.multifinger_hand import MultifingerDataset, collate_fn, convert_data_to_gpu, filter_json_data
 from AnyDexGrasp.models.minkowski_graspnet import MultifingerGraspSuccessPredictor
 from AnyDexGrasp.utils.solvers import PolyLR
 from AnyDexGrasp.models.loss import MultifingerType1Loss
@@ -43,10 +45,21 @@ def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Training routine for grasp decision models.")
     parser.add_argument("--gripper_type", default="Inspire", help="Gripper type (e.g., Inspire)")
-    parser.add_argument("--train_multifinger_type", type=int, default=1, help="Multifinger type variant for training")
+    parser.add_argument(
+        "--train_multifinger_type",
+        type=int,
+        default=1,
+        help="Multifinger grasp type variant for training, like Ring or Tripod ...",
+    )
 
     parser.add_argument(
-        "--dataset_root", default="logs/data/decision_model/inspire/obj40", help="Root directory for the dataset"
+        "--train_data_file",
+        default="logs/data/decision_model/inspire/obj40/obj40_single_point.json",
+        help="Path to the training data file",
+    )
+    parser.add_argument("--test_data_file", default=None, help="Path to the test data file")
+    parser.add_argument(
+        "--train_split_ratio", type=float, default=0.8, help="Ratio of data to use for training (0.0 to 1.0)"
     )
     parser.add_argument("--log_dir", default="logs/test/", help="Directory to save logs and model checkpoints")
 
@@ -95,14 +108,72 @@ def my_worker_init_fn(worker_id):
 
 def setup_dataloaders(config):
     """Creates and returns train and test dataloaders."""
-    logging.info(f"Setting up datasets from root: {config.dataset_root}")
-    train_dataset = MultifingerDataset(
-        root=config.dataset_root,  # Use the same root for train/test as per original code
-        multifinger_type=config.gripper_type,
-        dataset_type="train",
-        train_type=config.train_multifinger_type,
-        num_multifinger_type=NUM_MULTIFINGER_TYPE,
-    )
+    logging.info(f"Loading the training data from: {config.train_data_file}")
+    try:
+        with open(config.train_data_file, "r") as f:
+            train_data, trial_stats = filter_json_data(
+                json.load(f), config.gripper_type, config.train_multifinger_type, num_depth=NUM_MULTIFINGER_DEPTH
+            )
+            logging.info(f"Test data stats for each depth: {trial_stats}")
+
+            # NOTE: check unique angle types
+            angles = {}
+            for v in train_data.values():
+                if v["two_fingers_pose_angle_type"] not in angles:
+                    angles[v["two_fingers_pose_angle_type"]] = 1
+                else:
+                    angles[v["two_fingers_pose_angle_type"]] += 1
+            unique_angles = list(angles.keys())
+            unique_angles.sort()
+            print("Unique angle types:", unique_angles)
+
+    except FileNotFoundError:
+        logging.error(f"Data file not found: {config.train_data_file}")
+        raise
+    except json.JSONDecodeError:
+        logging.error(f"Error decoding JSON from file: {config.train_data_file}")
+        raise
+
+    # If test data file is provided, then use it
+    # If not or doesn't work, split the training data
+    test_data = None
+    if config.test_data_file is not None:
+        logging.info(f"Loading the test data from: {config.test_data_file}")
+        try:
+            with open(config.test_data_file, "r") as f:
+                test_data, trial_stats = filter_json_data(
+                    json.load(f), config.gripper_type, config.train_multifinger_type, num_depth=NUM_MULTIFINGER_DEPTH
+                )
+                logging.info(f"Test data stats for each depth: {trial_stats}")
+        except FileNotFoundError:
+            logging.error(f"Data file not found: {config.train_data_file}")
+            raise
+        except json.JSONDecodeError:
+            logging.error(f"Error decoding JSON from file: {config.train_data_file}")
+            raise
+
+    if test_data is None:
+        # --- Split the data keys ---
+        num_total = len(train_data)
+        num_train = int(num_total * config.train_split_ratio)
+        num_test = num_total - num_train
+
+        if num_train == 0 or num_test == 0:
+            logging.error(
+                f"Train/Test split resulted in zero samples for one set. Train: {num_train}, Test: {num_test}. Check data and split ratio."
+            )
+            raise ValueError("Train/Test split resulted in zero samples.")
+
+        # Use torch.utils.data.random_split for a robust split based on indices
+        all_keys = list(train_data.keys())
+        indices = list(range(num_total))
+        train_indices, test_indices = torch.utils.data.random_split(indices, [num_train, num_test])
+
+        test_data = {}
+        for i in test_indices:
+            test_data[all_keys[i]] = train_data.pop(all_keys[i])
+
+    train_dataset = MultifingerDataset(data_dict=train_data)
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=config.batch_size,
@@ -113,13 +184,7 @@ def setup_dataloaders(config):
         pin_memory=True,
     )
 
-    test_dataset = MultifingerDataset(
-        root=config.dataset_root,  # Use the same root for train/test as per original code
-        multifinger_type=config.gripper_type,
-        dataset_type="test",
-        train_type=config.train_multifinger_type,
-        num_multifinger_type=NUM_MULTIFINGER_TYPE,
-    )
+    test_dataset = MultifingerDataset(data_dict=test_data)
     test_dataloader = DataLoader(
         test_dataset,
         batch_size=config.batch_size,
@@ -222,8 +287,10 @@ def run_epoch(model, dataloader, criterion, optimizer, device, epoch, is_trainin
         # Forward pass
         net_start_time = time.time()
         with torch.set_grad_enabled(is_training):
+            # Model only needs the grasp_preds_features, which is the local geometry-related info
             grasp_preds_five_hand = model(batch_data_label["grasp_preds_features"])
 
+            # Extra info is used for calculating loss
             # Prepare end_points dictionary, include necessary data only
             end_points = {}
             end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
