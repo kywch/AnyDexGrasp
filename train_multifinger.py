@@ -48,7 +48,7 @@ def parse_arguments():
     parser.add_argument(
         "--train_multifinger_type",
         type=int,
-        default=1,
+        default=2,
         help="Multifinger grasp type variant for training, like Ring or Tripod ...",
     )
 
@@ -61,7 +61,7 @@ def parse_arguments():
     parser.add_argument(
         "--train_split_ratio", type=float, default=0.8, help="Ratio of data to use for training (0.0 to 1.0)"
     )
-    parser.add_argument("--log_dir", default="logs/test/", help="Directory to save logs and model checkpoints")
+    parser.add_argument("--log_dir", default="experiments", help="Directory to save logs and model checkpoints")
 
     parser.add_argument("--max_epoch", type=int, default=30, help="Total number of epochs to run")
     parser.add_argument("--batch_size", type=int, default=128, help="Batch size during training")
@@ -391,14 +391,14 @@ def run_epoch(model, dataloader, criterion, optimizer, device, epoch, is_trainin
     return metrics
 
 
-# TODO: check how the files are saved
-def save_checkpoint(state, is_best, log_dir, filename_prefix="checkpoint"):
+def save_checkpoint(state, is_best, checkpoint_dir, metric_name, metric_value, filename_prefix="checkpoint"):
     """Saves model checkpoint."""
-    filepath = os.path.join(log_dir, f"{filename_prefix}_latest.pth")
+    filepath = os.path.join(checkpoint_dir, f"{filename_prefix}_latest.pth")
     torch.save(state, filepath)
     logging.debug(f"Saved latest checkpoint to {filepath}")
     if is_best:
-        best_filepath = os.path.join(log_dir, f"{filename_prefix}_best.pth")
+        # Include metric name and value in the best checkpoint filename
+        best_filepath = os.path.join(checkpoint_dir, f"{filename_prefix}_best_{metric_name}_{metric_value:.4f}.pth")
         torch.save(state, best_filepath)
         logging.info(f"Saved best checkpoint to {best_filepath}")
 
@@ -407,14 +407,18 @@ def train(config):
     """Main training loop."""
     start_time = time.time()
 
+    # --- Create Experiment Directory ---
+    # Construct a unique name for this experiment run
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Extract a dataset tag (optional, adjust as needed)
+    dataset_tag = os.path.splitext(os.path.basename(config.train_data_file))[0]
+    experiment_name = f"{config.gripper_type}_type{config.train_multifinger_type}_{dataset_tag}_{timestamp}"
+    config.log_dir = os.path.join(config.log_dir, experiment_name)
+
     # --- Initial Setup ---
     if os.path.exists(config.log_dir) and config.overwrite:
-        logging.warning(f"Log directory {config.log_dir} exists.")
-        if input("Overwrite? (Y/N): ").upper() != "Y":
-            logging.info("Exiting.")
-            exit()
-        logging.info("Overwriting existing log directory.")
-        os.system(f"rm -r {config.log_dir}")  # Use with caution!
+        logging.warning(f"Log directory {config.log_dir} exists and overwrite is True. Removing existing directory.")
+        os.system(f"rm -r {config.log_dir}") # Use with caution!
 
     if not os.path.exists(config.log_dir):
         os.makedirs(config.log_dir)
@@ -426,6 +430,18 @@ def train(config):
     logging.info(f"PyTorch Version: {torch.__version__}")
     logging.info(f"CUDA Available: {torch.cuda.is_available()}")
 
+    # --- Create Subdirectories and Save Config ---
+    checkpoint_dir = os.path.join(config.log_dir, "checkpoints")
+    tensorboard_dir = os.path.join(config.log_dir, "tensorboard")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(os.path.join(tensorboard_dir, "train"), exist_ok=True)
+    os.makedirs(os.path.join(tensorboard_dir, "test"), exist_ok=True)
+
+    config_path = os.path.join(config.log_dir, "config.json")
+    with open(config_path, 'w') as f:
+        json.dump(vars(config), f, indent=4)
+    logging.info(f"Saved configuration to {config_path}")
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
 
@@ -434,8 +450,8 @@ def train(config):
     model, criterion, optimizer, lr_scheduler = setup_model_criterion_optimizer(config, device)
 
     # Tensorboard writers
-    train_writer = SummaryWriter(os.path.join(config.log_dir, "train"))
-    test_writer = SummaryWriter(os.path.join(config.log_dir, "test"))
+    train_writer = SummaryWriter(os.path.join(tensorboard_dir, "train"))
+    test_writer = SummaryWriter(os.path.join(tensorboard_dir, "test"))
 
     # --- Training Loop ---
     best_metric_val = -1.0  # Initialize with a value lower than any possible metric
@@ -496,7 +512,9 @@ def train(config):
                 "config": config,
             },
             is_best,
-            config.log_dir,
+            checkpoint_dir, # Pass the specific checkpoint directory
+            config.checkpoint_metric, # Pass metric name for filename
+            current_metric_val # Pass metric value for filename
         )
 
         logging.info(f"Best evaluation metric ({config.checkpoint_metric}) so far: {best_metric_val:.4f}")
