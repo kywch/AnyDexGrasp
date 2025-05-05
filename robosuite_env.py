@@ -295,7 +295,32 @@ def make_robosuite_env(
     return env
 
 
-def move_eef_to(env, pose, show_grab=True, min_steps=None, max_steps=120):
+def env_reset_get_camera_obs(robot_env, camera_name, init_eef_pos, camera_height=720, camera_width=1280):
+    robot_env.reset()
+
+    # The initial pose
+    ref_id = robot_env.sim.model.site_name2id("gripper0_right_grip_site")
+    eef_pos = robot_env.sim.data.site_xpos[ref_id]
+    eef_ori_mat = robot_env.sim.data.site_xmat[ref_id].reshape((3, 3))
+    eef_ori_aa = Rotation.from_matrix(eef_ori_mat).as_rotvec()
+
+    search_pose = np.zeros(7)  # OSC_POSE
+    search_pose[:3] = eef_pos + np.array(init_eef_pos)
+    search_pose[3:6] = eef_ori_aa
+    search_pose[6] = 1
+
+    # Get the hand out of the camera view
+    for _ in range(50):
+        obs_dict, _, _, _ = robot_env.step(search_pose)
+
+    camera = RobosuiteCameraInfo(
+        robot_env.sim, camera_name, camera_height=camera_height, camera_width=camera_width
+    )
+
+    return camera, obs_dict
+
+
+def move_eef_to(env, pose, show_grab=True, min_steps=None, max_steps=100):
     gripper = env.robots[0].gripper["right"]
     cnt_steps = 0
 

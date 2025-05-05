@@ -30,7 +30,7 @@ def filter_json_data(data, gripper_type, grasp_type, num_depth=4):
         }
 
     for trial_key, trial_dict in data.items():
-        # Keep the trail data if both gripper_type and grasp_type match
+        # Keep the trial data if both gripper_type and grasp_type match
         if (
             finger_type_key in trial_dict
             and trial_dict[finger_type_key] == grasp_type

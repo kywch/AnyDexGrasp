@@ -5,6 +5,7 @@ import datetime
 
 import numpy as np
 from scipy.spatial.transform import Rotation
+import polars as pl
 
 import open3d as o3d
 from PIL import Image
@@ -15,7 +16,7 @@ import robosuite.utils.camera_utils as CU
 from AnyDexGrasp.utils.collision_detector import ModelFreeCollisionDetectorMultifinger, load_meshes_pointcloud
 from AnyDexGrasp.utils.graspnet_utils import GraspNetRunner, get_grasp_features, flip_ggarray
 
-from robosuite_env import make_robosuite_env, RobosuiteCameraInfo, execute_grasp
+from robosuite_env import make_robosuite_env, env_reset_get_camera_obs, execute_grasp
 from InspireHandR_grasp import GRASP_TYPES, InspireHandRGraspGroup
 
 
@@ -25,8 +26,8 @@ MAX_GRASP_WIDTH = 0.1
 MIN_GRASP_WIDTH = 0.02
 INSPIREHANDR_VOXEL_GRID = 0.002
 COLLISION_APPROACH_DIST = 0.04
-NUM_OF_INSPIRE_DEPTH = 4
 
+EEF_SEARCH_POS = np.array([0.10, -0.20, 0.10])  # camera can view the whole table
 GRAB_SITE_OFFSET = np.array([-0.01, 0, 0])  # in the grip frame
 
 
@@ -47,7 +48,8 @@ def parse_arguments():
     )
     parser.add_argument("--render", action="store_true", help="Render the scene")
     parser.add_argument("--camera_name", default="robot0_eye_in_hand", help="Robosuite camera name to use")
-    parser.add_argument("--num_trial_per_type", default=10, help="Number of trials per grasp type")
+    parser.add_argument("--num_trial_per_type", default=5, type=int, help="Number of trials per grasp type")
+    parser.add_argument("--num_multifinger_depth", default=2, type=int, help="Number of multifinger depth levels")
     args = parser.parse_args()
 
     return args
@@ -197,39 +199,13 @@ def sample_grasp(
     return InspireHandR_ggarray, two_fingers_ggarray, grasp_features, points_down
 
 
-def env_reset_and_get_obs(robot_env, eef_offset=[0.10, -0.20, 0.10], camera_height=720, camera_width=1280):
-    robot_env.reset()
-
-    # The initial pose
-    ref_id = robot_env.sim.model.site_name2id("gripper0_right_grip_site")
-    eef_pos = robot_env.sim.data.site_xpos[ref_id]
-    eef_ori_mat = robot_env.sim.data.site_xmat[ref_id].reshape((3, 3))
-    eef_ori_aa = Rotation.from_matrix(eef_ori_mat).as_rotvec()
-
-    search_pose = np.zeros(7)  # OSC_POSE
-    search_pose[:3] = eef_pos + np.array(eef_offset)
-    search_pose[3:6] = eef_ori_aa
-    search_pose[6] = 1
-
-    # Get the hand out of the camera view
-    for _ in range(50):
-        obs_dict, _, _, _ = robot_env.step(search_pose)
-
-    camera = RobosuiteCameraInfo(
-        robot_env.sim, cfgs.camera_name, camera_height=camera_height, camera_width=camera_width
-    )
-
-    return camera, obs_dict
-
-
 if __name__ == "__main__":
     cfgs = parse_arguments()
 
-    inspire_grasp_types = [int(x) for x in GRASP_TYPES.keys()]
-
     run_summary, exp_data = {}, {}
+    inspire_grasp_types = [int(x) for x in GRASP_TYPES.keys()]
     for t in inspire_grasp_types:
-        for d in range(NUM_OF_INSPIRE_DEPTH):
+        for d in range(cfgs.num_multifinger_depth):
             run_summary[(t, d)] = {
                 "name": GRASP_TYPES[str(t)]["name"],
                 "inspire_depth": d,
@@ -243,24 +219,23 @@ if __name__ == "__main__":
 
     # Setup env
     robot_env = make_robosuite_env(task="Lift", camera_name=cfgs.camera_name, render=cfgs.render)
+    camera, _ = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
 
-    camera = RobosuiteCameraInfo(robot_env.sim, cfgs.camera_name, camera_height=720, camera_width=1280)
     graspnet_runner = GraspNetRunner(
         camera, cfgs.checkpoint_path, max_grasp_width=MAX_GRASP_WIDTH, min_grasp_width=MIN_GRASP_WIDTH
     )
 
+    result_file = f"grasp_data_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.pkl"
     for n in range(cfgs.num_trial_per_type):
         for grasp_type in inspire_grasp_types:
-            for grasp_depth in range(NUM_OF_INSPIRE_DEPTH):
-                camera, obs_dict = env_reset_and_get_obs(robot_env)
+            for grasp_depth in range(cfgs.num_multifinger_depth):
+                camera, obs_dict = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
 
                 if DEBUG:
                     Image.fromarray(obs_dict["{}_image".format(cfgs.camera_name)][::-1]).show()
 
-                # grasp_type = np.random.choice(inspire_grasp_types)
-                # grasp_depth = np.random.randint(NUM_OF_INSPIRE_DEPTH)
                 run_summary[(grasp_type, grasp_depth)]["count"] += 1
-                print(f"Round {n+1}, grasp_type: {GRASP_TYPES[str(grasp_type)]['name']}, grasp_depth: {grasp_depth}")
+                print(f"Round {n + 1}, grasp_type: {GRASP_TYPES[str(grasp_type)]['name']}, grasp_depth: {grasp_depth}")
 
                 if cfgs.render:
                     input("Press Enter to continue...")
@@ -319,42 +294,25 @@ if __name__ == "__main__":
                 trial_key = datetime.datetime.now().strftime("%m%d-%H%M%S")
                 exp_data[trial_key] = trial_info
 
-    result_file = f"grasp_data_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.pkl"
-    with open(result_file, "wb") as f:
-        pickle.dump(
-            {
-                "run_summary": run_summary,
-                "exp_data": exp_data,
-            },
-            f,
-        )
+        # Save intermediate results
+        with open(result_file, "wb") as f:
+            pickle.dump(
+                {
+                    "run_summary": run_summary,
+                    "exp_data": exp_data,
+                },
+                f,
+            )
 
-    # Get trial info covers the most, but need to add multifinger_pose_depth_type and result
-
-    # Below is the data required to train the grasp decision models
-    """
-    end_points = {}
-    end_points["two_fingers_pose_angle_type"] = batch_data_label["two_fingers_pose_angle_type"]
-    end_points["two_fingers_pose_depth_type"] = batch_data_label["two_fingers_pose_depth_type"]
-    end_points["multifinger_pose_finger_type"] = batch_data_label["multifinger_pose_finger_type"]
-    end_points["multifinger_pose_depth_type"] = batch_data_label["multifinger_pose_depth_type"]
-    end_points["grasp_preds_features"] = batch_data_label["grasp_preds_features"]
-    end_points["if_flip"] = batch_data_label["if_flip"]
-    end_points["result"] = batch_data_label["result"]  # Grasp success 1, fail 0
-    """
-
-    # TODO: after executing grasp, save relevant information for training
-    # Repeat this for 1000 trials per grasp type
-    # The env should have multiple objects with a clean-up task
-    # Sampling diverse geometry is the key
-
-    print()
-
-    # pass
-
-    # t0 = time.time()
-    # try:
-    #     robot_grasp(cfgs)
-    # finally:
-    #     tn = time.time()
-    #     print(f"total time:{tn - t0}")
+    # Print out a summary table using polars
+    df = pl.DataFrame(
+        [
+            pl.Series("grasp_type", [v["name"] for v in run_summary.values()]),
+            pl.Series("inspire_depth", [v["inspire_depth"] for v in run_summary.values()]),
+            pl.Series("count", [v["count"] for v in run_summary.values()]),
+            pl.Series("no_valid_grasp_proposal", [v["no_valid_grasp_proposal"] for v in run_summary.values()]),
+            pl.Series("success", [v["success"] for v in run_summary.values()]),
+        ]
+    )
+    df.with_columns((100 * df["success"] / (df["count"] - df["no_valid_grasp_proposal"])).alias("success_pcnt"))
+    print(df)

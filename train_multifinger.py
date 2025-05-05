@@ -1,8 +1,9 @@
 import os
 import time
 import json
-import argparse
+import pickle
 import logging
+import argparse
 from datetime import datetime
 
 import numpy as np
@@ -21,8 +22,7 @@ from AnyDexGrasp.models.loss import MultifingerType1Loss
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 
-NUM_MULTIFINGER_TYPE = 1
-NUM_MULTIFINGER_DEPTH = 4
+NUM_MULTIFINGER_TYPE = 1  # NOTE: training model for "each" grasp type
 NUM_TWO_FINGER_DEPTH = 5
 
 METRIC_KEYS = [
@@ -48,13 +48,20 @@ def parse_arguments():
     parser.add_argument(
         "--train_multifinger_type",
         type=int,
-        default=2,
-        help="Multifinger grasp type variant for training, like Ring or Tripod ...",
+        default=-1,
+        help="Multifinger grasp type variant for training. If -1, train all types.",
+    )
+    parser.add_argument(
+        "--num_multifinger_depth",
+        type=int,
+        default=2,  # NOTE: the original used 4 depth levels, but here opting for 2
+        help="Number of depth levels for multifinger grasp"
     )
 
     parser.add_argument(
         "--train_data_file",
-        default="logs/data/decision_model/inspire/obj40/obj40_single_point.json",
+        # default="logs/data/decision_model/inspire/obj40/obj40_single_point.json",
+        default="grasp_data_0505-095830.pkl",
         help="Path to the training data file",
     )
     parser.add_argument("--test_data_file", default=None, help="Path to the test data file")
@@ -63,7 +70,7 @@ def parse_arguments():
     )
     parser.add_argument("--log_dir", default="experiments", help="Directory to save logs and model checkpoints")
 
-    parser.add_argument("--max_epoch", type=int, default=30, help="Total number of epochs to run")
+    parser.add_argument("--max_epoch", type=int, default=100, help="Total number of epochs to run")
     parser.add_argument("--batch_size", type=int, default=128, help="Batch size during training")
     parser.add_argument("--learning_rate", type=float, default=0.0005, help="Initial learning rate")
     parser.add_argument("--weight_decay", type=float, default=0.0005, help="Optimizer L2 weight decay")
@@ -84,6 +91,10 @@ def parse_arguments():
 def setup_logging(log_dir):
     """Configures logging to file and console."""
     logger = logging.getLogger()
+    # Prevent adding handlers multiple times
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 
@@ -110,22 +121,30 @@ def setup_dataloaders(config):
     """Creates and returns train and test dataloaders."""
     logging.info(f"Loading the training data from: {config.train_data_file}")
     try:
-        with open(config.train_data_file, "r") as f:
-            train_data, trial_stats = filter_json_data(
-                json.load(f), config.gripper_type, config.train_multifinger_type, num_depth=NUM_MULTIFINGER_DEPTH
-            )
-            logging.info(f"Test data stats for each depth: {trial_stats}")
+        if config.train_data_file.endswith("json"):
+            with open(config.train_data_file, "r") as f:
+                tmp_data = json.load(f)
+        elif config.train_data_file.endswith("pkl"):
+            with open(config.train_data_file, "rb") as f:
+                tmp_data = pickle.load(f)["exp_data"]
+        else:
+            raise ValueError(f"Unsupported file type: {config.train_data_file}")
 
-            # NOTE: check unique angle types
-            angles = {}
-            for v in train_data.values():
-                if v["two_fingers_pose_angle_type"] not in angles:
-                    angles[v["two_fingers_pose_angle_type"]] = 1
-                else:
-                    angles[v["two_fingers_pose_angle_type"]] += 1
-            unique_angles = list(angles.keys())
-            unique_angles.sort()
-            print("Unique angle types:", unique_angles)
+        train_data, trial_stats = filter_json_data(
+            tmp_data, config.gripper_type, config.train_multifinger_type, num_depth=config.num_multifinger_depth
+        )
+        logging.info(f"Test data stats for each depth: {trial_stats}")
+
+        # NOTE: check unique angle types
+        angles = {}
+        for v in train_data.values():
+            if v["two_fingers_pose_angle_type"] not in angles:
+                angles[v["two_fingers_pose_angle_type"]] = 1
+            else:
+                angles[v["two_fingers_pose_angle_type"]] += 1
+        unique_angles = list(angles.keys())
+        unique_angles.sort()
+        print("Unique angle types:", unique_angles)
 
     except FileNotFoundError:
         logging.error(f"Data file not found: {config.train_data_file}")
@@ -140,11 +159,19 @@ def setup_dataloaders(config):
     if config.test_data_file is not None:
         logging.info(f"Loading the test data from: {config.test_data_file}")
         try:
-            with open(config.test_data_file, "r") as f:
-                test_data, trial_stats = filter_json_data(
-                    json.load(f), config.gripper_type, config.train_multifinger_type, num_depth=NUM_MULTIFINGER_DEPTH
-                )
-                logging.info(f"Test data stats for each depth: {trial_stats}")
+            if config.test_data_file.endswith("json"):
+                with open(config.train_data_file, "r") as f:
+                    tmp_data = json.load(f)
+            elif config.test_data_file.endswith("pkl"):
+                with open(config.train_data_file, "rb") as f:
+                    tmp_data = pickle.load(f)["exp_data"]
+            else:
+                raise ValueError(f"Unsupported file type: {config.test_data_file}")
+
+            test_data, trial_stats = filter_json_data(
+                tmp_data, config.gripper_type, config.train_multifinger_type, num_depth=config.num_multifinger_depth
+            )
+            logging.info(f"Test data stats for each depth: {trial_stats}")
         except FileNotFoundError:
             logging.error(f"Data file not found: {config.train_data_file}")
             raise
@@ -204,14 +231,14 @@ def setup_model_criterion_optimizer(config, device):
     logging.info("Initializing model, criterion, and optimizer...")
     model = MultifingerGraspSuccessPredictor(
         num_multifinger_type=NUM_MULTIFINGER_TYPE,
-        num_multifinger_depth=NUM_MULTIFINGER_DEPTH,
+        num_multifinger_depth=config.num_multifinger_depth,
         num_two_finger_depth=NUM_TWO_FINGER_DEPTH,
     )
     model.to(device)
 
     criterion = MultifingerType1Loss(
         num_multifinger_type=NUM_MULTIFINGER_TYPE,
-        num_multifinger_depth=NUM_MULTIFINGER_DEPTH,
+        num_multifinger_depth=config.num_multifinger_depth,
         num_two_finger_depth=NUM_TWO_FINGER_DEPTH,
         train_type=config.train_multifinger_type,
     )
@@ -410,20 +437,18 @@ def train(config):
     # --- Create Experiment Directory ---
     # Construct a unique name for this experiment run
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    # Extract a dataset tag (optional, adjust as needed)
-    dataset_tag = os.path.splitext(os.path.basename(config.train_data_file))[0]
-    experiment_name = f"{config.gripper_type}_type{config.train_multifinger_type}_{dataset_tag}_{timestamp}"
-    config.log_dir = os.path.join(config.log_dir, experiment_name)
+    experiment_name = f"{config.gripper_type}_type{config.train_multifinger_type}_{timestamp}"
+    log_dir = os.path.join(config.log_dir, experiment_name)
 
     # --- Initial Setup ---
-    if os.path.exists(config.log_dir) and config.overwrite:
-        logging.warning(f"Log directory {config.log_dir} exists and overwrite is True. Removing existing directory.")
-        os.system(f"rm -r {config.log_dir}") # Use with caution!
+    if os.path.exists(log_dir) and config.overwrite:
+        logging.warning(f"Log directory {log_dir} exists and overwrite is True. Removing existing directory.")
+        os.system(f"rm -r {log_dir}") # Use with caution!
 
-    if not os.path.exists(config.log_dir):
-        os.makedirs(config.log_dir)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-    setup_logging(config.log_dir)  # Configure logging first
+    setup_logging(log_dir)  # Configure logging first
     logging.info("Starting training process...")
     logging.info(f"Script arguments: {config}")
     logging.info(f"Current time: {datetime.now()}")
@@ -431,13 +456,13 @@ def train(config):
     logging.info(f"CUDA Available: {torch.cuda.is_available()}")
 
     # --- Create Subdirectories and Save Config ---
-    checkpoint_dir = os.path.join(config.log_dir, "checkpoints")
-    tensorboard_dir = os.path.join(config.log_dir, "tensorboard")
+    checkpoint_dir = os.path.join(log_dir, "checkpoints")
+    tensorboard_dir = os.path.join(log_dir, "tensorboard")
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(os.path.join(tensorboard_dir, "train"), exist_ok=True)
     os.makedirs(os.path.join(tensorboard_dir, "test"), exist_ok=True)
 
-    config_path = os.path.join(config.log_dir, "config.json")
+    config_path = os.path.join(log_dir, "config.json")
     with open(config_path, 'w') as f:
         json.dump(vars(config), f, indent=4)
     logging.info(f"Saved configuration to {config_path}")
@@ -514,7 +539,8 @@ def train(config):
             is_best,
             checkpoint_dir, # Pass the specific checkpoint directory
             config.checkpoint_metric, # Pass metric name for filename
-            current_metric_val # Pass metric value for filename
+            current_metric_val, # Pass metric value for filename
+            filename_prefix=f"{config.gripper_type}_type{config.train_multifinger_type}"
         )
 
         logging.info(f"Best evaluation metric ({config.checkpoint_metric}) so far: {best_metric_val:.4f}")
@@ -529,4 +555,11 @@ def train(config):
 
 if __name__ == "__main__":
     config = parse_arguments()
-    train(config)
+
+    # TODO: add some checks
+    if config.train_multifinger_type == -1:
+        for mt in range(1, 9):  # NOTE: this is inspire-specific
+            config.train_multifinger_type = mt
+            train(config)
+    else:
+        train(config)
