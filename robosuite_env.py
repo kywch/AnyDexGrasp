@@ -303,7 +303,7 @@ def move_eef_to(env, pose, show_grab=True, min_steps=None, max_steps=120):
         env.step(pose)
 
         # Visualize the grab site
-        if show_grab:
+        if env.has_renderer and show_grab:
             grab_pos, grab_ori_mat = gripper.get_grab_site_from_curr_eef(env)
             show_grab_site(env, grab_pos, grab_ori_mat)
 

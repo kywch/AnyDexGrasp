@@ -11,10 +11,8 @@ from tqdm import tqdm
 
 import MinkowskiEngine as ME
 
-from ..utils.collision_detector import CollisionType
 from ..utils.np_utils import (
     transform_point_cloud,
-    remove_invisible_grasp_points,
     create_point_cloud_from_depth_image,
     get_workspace_mask,
 )
