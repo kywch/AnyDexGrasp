@@ -390,6 +390,10 @@ def execute_grasp(env, camera, inspire_grasp, twofinger_grasp, grab_site_offset=
 
     # TODO: Add placing actions?
 
+    result = int(env.reward())
+
+    return result
+
 
 class RobosuiteCameraInfo:
     def __init__(self, sim, camera_name, camera_height, camera_width, scale=1.0):

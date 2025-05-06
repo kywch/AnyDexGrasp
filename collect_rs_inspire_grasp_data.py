@@ -4,7 +4,6 @@ import argparse
 import datetime
 
 import numpy as np
-from scipy.spatial.transform import Rotation
 import polars as pl
 
 import open3d as o3d
@@ -37,14 +36,14 @@ def parse_arguments():
     # Using the downloaded checkpoint
     parser.add_argument("--checkpoint_path", default="logs/model/checkpoint.tar.18", help="Model checkpoint path")
     parser.add_argument(
-        "--save_information_path",
-        default="logs/data/decision_model/inspire/obj140/collect",
-        help="inspire model result information path",
-    )
-    parser.add_argument(
         "--inspire_mesh_json_path",
         default="generate_mesh_and_pointcloud/inspire_urdf",
         help="InspireHandR meshes and json path",  # generated
+    )
+    parser.add_argument(
+        "--result_file_prefix",
+        default="inspire_train",
+        help="Prefix for the result file name",
     )
     parser.add_argument("--render", action="store_true", help="Render the scene")
     parser.add_argument("--camera_name", default="robot0_eye_in_hand", help="Robosuite camera name to use")
@@ -178,7 +177,7 @@ def sample_grasp(
             two_fingers_ggarray,
             inspire_mesh_json_path,
             meshes_pcls,
-            min_grasp_width=MIN_GRASP_WIDTH,
+            min_grasp_width=min_grasp_width,
             downsample_voxel_size=INSPIREHANDR_VOXEL_GRID,
             approach_dist=COLLISION_APPROACH_DIST,
             collision_thresh=1,
@@ -225,7 +224,7 @@ if __name__ == "__main__":
         camera, cfgs.checkpoint_path, max_grasp_width=MAX_GRASP_WIDTH, min_grasp_width=MIN_GRASP_WIDTH
     )
 
-    result_file = f"grasp_data_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.pkl"
+    result_file = f"{cfgs.result_file_prefix}_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.pkl"
     for n in range(cfgs.num_trial_per_type):
         for grasp_type in inspire_grasp_types:
             for grasp_depth in range(cfgs.num_multifinger_depth):
@@ -275,14 +274,13 @@ if __name__ == "__main__":
                     )
 
                 print("Executing a grasp ...")
-                execute_grasp(
+                result = execute_grasp(
                     robot_env,
                     camera,
                     InspireHandR_grasp_used,
                     two_fingers_grasp_used,
                     grab_site_offset=GRAB_SITE_OFFSET,
                 )
-                result = int(robot_env.reward())
 
                 print("Result:", "success" if result else "fail", "\n")
                 run_summary[(grasp_type, grasp_depth)]["success"] += result
