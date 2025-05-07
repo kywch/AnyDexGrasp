@@ -278,6 +278,7 @@ def choose_grasp(
         z_filter_mask = InspireHandR_ggarray.filter_grasp_group_by_z_axis(0.4)
         two_fingers_ggarray = two_fingers_ggarray[z_filter_mask]
         grasp_features = grasp_features[z_filter_mask]
+        inspire_depth = inspire_depth[z_filter_mask]
 
         if len(InspireHandR_ggarray) == 0:
             print("No grasp detected after z-axis filter")
@@ -300,6 +301,7 @@ def choose_grasp(
         InspireHandR_ggarray = InspireHandR_ggarray[collision_free_mask]
         two_fingers_ggarray = two_fingers_ggarray[collision_free_mask]
         grasp_features = grasp_features[collision_free_mask]
+        inspire_depth = inspire_depth[collision_free_mask]
 
         if len(InspireHandR_ggarray) == 0:
             print("No grasp detected after collision detection")
@@ -308,7 +310,7 @@ def choose_grasp(
         # OK, we got some grasp candidates to try
         break
 
-    return InspireHandR_ggarray, two_fingers_ggarray, grasp_features, points_down
+    return InspireHandR_ggarray, two_fingers_ggarray, grasp_features, inspire_depth, points_down
 
 
 def run_eval(cfgs):
@@ -324,7 +326,9 @@ def run_eval(cfgs):
         camera, cfgs.checkpoint_path, max_grasp_width=MAX_GRASP_WIDTH, min_grasp_width=MIN_GRASP_WIDTH
     )
 
+    num_success = 0
     for n in range(cfgs.num_trial):
+        print("Trial", n+1)
         camera, obs_dict = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
 
         if DEBUG:
@@ -337,7 +341,7 @@ def run_eval(cfgs):
             sim=robot_env.sim, depth_map=obs_dict["{}_depth".format(cfgs.camera_name)][::-1]
         ).squeeze()
 
-        InspireHandR_ggarray, two_fingers_ggarray, grasp_features, points_down = choose_grasp(
+        InspireHandR_ggarray, two_fingers_ggarray, grasp_features, inspire_depth, points_down = choose_grasp(
             graspnet_runner,
             inspire_models,
             depth_map,
@@ -356,14 +360,15 @@ def run_eval(cfgs):
             exp_data.append(result)
             continue
 
-        # Randomly pick one among top 10
+        # Randomly pick one among top 5
         grasp_idx = random.randint(0, min(len(InspireHandR_ggarray) - 1, 5))
         InspireHandR_grasp_used = InspireHandR_ggarray[grasp_idx]
         two_fingers_grasp_used = two_fingers_ggarray[grasp_idx]
         grasp_features_used = grasp_features[grasp_idx]
+        inspire_depth_used = int(inspire_depth[grasp_idx])
 
         print(
-            f"Executing a grasp ... (grasp type: {int(InspireHandR_grasp_used.grasp_type)}, score: {InspireHandR_grasp_used.score:.4f})"
+            f"Executing a grasp ... (grasp type: {int(InspireHandR_grasp_used.grasp_type)}, depth: {inspire_depth_used}, score: {InspireHandR_grasp_used.score:.4f})"
         )
         is_success = execute_grasp(
             robot_env,
@@ -372,9 +377,11 @@ def run_eval(cfgs):
             two_fingers_grasp_used,
             grab_site_offset=GRAB_SITE_OFFSET,
         )
-        print("Result:", "success" if is_success else "fail", "\n")
+        num_success += is_success
+        print(f"Result: {'success' if is_success else 'fail'}. So far {num_success} / {n+1}\n")
 
         result["used_grasp_type"] = int(InspireHandR_grasp_used.grasp_type)
+        result["used_multifinger_depth"] = inspire_depth_used
         result["used_grasp_score"] = InspireHandR_grasp_used.score
         result["top5_grasp"] = [(int(g.grasp_type), g.score) for g in InspireHandR_ggarray[:5]]
         result["is_success"] = is_success
