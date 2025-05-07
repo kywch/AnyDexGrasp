@@ -26,3 +26,6 @@ render_kitchen.py
 **/ur_toolbox/venv/
 **/PCAN-Basic_Linux-4.6.2.36/**
 **/peak-linux-driver-8.12.0/**
+
+experiments/*
+best_models/*

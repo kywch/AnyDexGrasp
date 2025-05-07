@@ -13,7 +13,7 @@ from graspnetAPI import GraspGroup
 import robosuite.utils.camera_utils as CU
 
 from AnyDexGrasp.utils.collision_detector import ModelFreeCollisionDetectorMultifinger, load_meshes_pointcloud
-from AnyDexGrasp.utils.graspnet_utils import GraspNetRunner, get_grasp_features, flip_ggarray
+from AnyDexGrasp.utils.graspnet_utils import GraspNetRunner, get_grasp_features, flip_ggarray, get_trial_info
 
 from robosuite_env import make_robosuite_env, env_reset_get_camera_obs, execute_grasp
 from InspireHandR_grasp import GRASP_TYPES, InspireHandRGraspGroup
@@ -52,31 +52,6 @@ def parse_arguments():
     args = parser.parse_args()
 
     return args
-
-
-def get_trial_info(
-    two_fingers_grasp_used,
-    InspireHandR_grasp_used,
-    grasp_features_used,
-):
-    tfg = two_fingers_grasp_used
-    two_fingers_array = (
-        [float(tfg.score), float(tfg.width), float(tfg.height), float(tfg.depth)]
-        + np.array(tfg.rotation_matrix).reshape((-1)).tolist()
-        + list(tfg.translation.reshape(-1).tolist())
-        + [float(InspireHandR_grasp_used.object_id)]
-    )
-    grasp_features_dict = get_grasp_features(grasp_features_used)
-
-    return {
-        "grasp_preds_features": grasp_features_dict["grasp_preds_features"],
-        "two_fingers_pose": list(two_fingers_array),
-        "InspiredHandR_pose": list(InspireHandR_grasp_used.get_array_grasp()),
-        "two_fingers_pose_angle_type": grasp_features_dict["grasp_angles"],
-        "two_fingers_pose_depth_type": grasp_features_dict["grasp_depths"],
-        "if_flip": grasp_features_dict["if_flip"],
-        "InspiredHandR_pose_finger_type": int(InspireHandR_grasp_used.grasp_type + 0.1),
-    }
 
 
 def show_scene_cloud(points, multifinger_mesh=None, two_finger_mesh=None, trasform_matrix=None, width=1024, height=640):

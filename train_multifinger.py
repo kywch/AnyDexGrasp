@@ -61,10 +61,10 @@ def parse_arguments():
     parser.add_argument(
         "--train_data_file",
         # default="logs/data/decision_model/inspire/obj40/obj40_single_point.json",
-        default="grasp_data_0505-095830.pkl",
+        default="inspire_train_500_0506.pkl",
         help="Path to the training data file",
     )
-    parser.add_argument("--test_data_file", default=None, help="Path to the test data file")
+    parser.add_argument("--test_data_file", default="inspire_test_100_0506.pkl", help="Path to the test data file")
     parser.add_argument(
         "--train_split_ratio", type=float, default=0.8, help="Ratio of data to use for training (0.0 to 1.0)"
     )
@@ -80,7 +80,7 @@ def parse_arguments():
     # Checkpointing
     parser.add_argument(
         "--checkpoint_metric",
-        default="f1_0.9",
+        default="f1_0.5",
         help="Metric used to determine the best checkpoint (e.g., f1_0.9, recall_0.7)",
     )
 
@@ -133,7 +133,7 @@ def setup_dataloaders(config):
         train_data, trial_stats = filter_json_data(
             tmp_data, config.gripper_type, config.train_multifinger_type, num_depth=config.num_multifinger_depth
         )
-        logging.info(f"Test data stats for each depth: {trial_stats}")
+        logging.info(f"Train data stats for each depth: {trial_stats}")
 
         # NOTE: check unique angle types
         angles = {}
@@ -160,10 +160,10 @@ def setup_dataloaders(config):
         logging.info(f"Loading the test data from: {config.test_data_file}")
         try:
             if config.test_data_file.endswith("json"):
-                with open(config.train_data_file, "r") as f:
+                with open(config.test_data_file, "r") as f:
                     tmp_data = json.load(f)
             elif config.test_data_file.endswith("pkl"):
-                with open(config.train_data_file, "rb") as f:
+                with open(config.test_data_file, "rb") as f:
                     tmp_data = pickle.load(f)["exp_data"]
             else:
                 raise ValueError(f"Unsupported file type: {config.test_data_file}")

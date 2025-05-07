@@ -143,6 +143,31 @@ def get_grasp_features(grasp_features_array):
     return grasp_features
 
 
+def get_trial_info(
+    two_fingers_grasp_used,
+    InspireHandR_grasp_used,
+    grasp_features_used,
+):
+    tfg = two_fingers_grasp_used
+    two_fingers_array = (
+        [float(tfg.score), float(tfg.width), float(tfg.height), float(tfg.depth)]
+        + np.array(tfg.rotation_matrix).reshape((-1)).tolist()
+        + list(tfg.translation.reshape(-1).tolist())
+        + [float(InspireHandR_grasp_used.object_id)]
+    )
+    grasp_features_dict = get_grasp_features(grasp_features_used)
+
+    return {
+        "grasp_preds_features": grasp_features_dict["grasp_preds_features"],
+        "two_fingers_pose": list(two_fingers_array),
+        "InspiredHandR_pose": list(InspireHandR_grasp_used.get_array_grasp()),
+        "two_fingers_pose_angle_type": grasp_features_dict["grasp_angles"],
+        "two_fingers_pose_depth_type": grasp_features_dict["grasp_depths"],
+        "if_flip": grasp_features_dict["if_flip"],
+        "InspiredHandR_pose_finger_type": int(InspireHandR_grasp_used.grasp_type + 0.1),
+    }
+
+
 class GraspNetRunner:
     def __init__(
         self,
