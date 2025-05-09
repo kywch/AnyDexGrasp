@@ -25,6 +25,7 @@ class MJCFObject(MujocoXMLObject):
         solref=(0.001, 1),
         density=100,
         friction=(0.95, 0.3, 0.1),
+        joint_damping=0.001,
         margin=None,
         rgba=None,
         priority=None,
@@ -68,7 +69,7 @@ class MJCFObject(MujocoXMLObject):
         super().__init__(
             fname=new_xml_path,
             name=name,
-            joints=[dict(type="free", damping="0.0005")],
+            joints=[dict(type="free", damping=str(joint_damping))],
             obj_type="all",
             duplicate_collision_geoms=False,
             scale=scale,

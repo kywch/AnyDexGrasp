@@ -84,7 +84,7 @@ def download_url(url, download_dir, fname=None, check_overwrite=True):
         assert user_response.lower() in {
             "yes",
             "y",
-        }, f"Did not receive confirmation. Aborting download."
+        }, "Did not receive confirmation. Aborting download."
 
     print(colored(f"Downloading to {file_to_write}", "yellow"))
 

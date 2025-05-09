@@ -10,15 +10,16 @@ import mujoco
 import mujoco.viewer
 import numpy as np
 import robosuite
-from pynput.keyboard import Controller, Key, Listener
+from pynput.keyboard import Listener
 from robosuite.devices import Device
-from robosuite.utils.binding_utils import MjRenderContextOffscreen, MjSim
+from robosuite.utils.binding_utils import MjSim
 from robosuite.utils.mjcf_utils import array_to_string as a2s
 from robosuite.utils.mjcf_utils import find_elements
 from robosuite.utils.mjcf_utils import string_to_array as s2a
 from termcolor import colored
 
-from robocasa_objects.kitchen_object_utils import sample_kitchen_object, BASE_ASSET_ZOO_PATH
+from diverse_lift import BASE_ASSET_ZOO_PATH
+from diverse_lift.kitchen_object_utils import sample_kitchen_object
 
 
 def edit_model_xml(xml_str):

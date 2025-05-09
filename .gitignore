@@ -29,3 +29,5 @@ render_kitchen.py
 
 experiments/*
 best_models/*
+assets/*
+diverse_lift/assets/objaverse

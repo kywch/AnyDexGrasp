@@ -8,10 +8,8 @@ from copy import deepcopy
 import numpy as np
 from robosuite.utils.mjcf_utils import find_elements, string_to_array
 
-from robocasa_objects.kitchen_objects import OBJ_CATEGORIES, OBJ_GROUPS
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASE_ASSET_ZOO_PATH = os.path.join(REPO_ROOT, "assets/objects")
+from diverse_lift import BASE_ASSET_ZOO_PATH
+from diverse_lift.kitchen_objects import OBJ_CATEGORIES, OBJ_GROUPS
 
 
 class ObjCat:
