@@ -1,4 +1,5 @@
 import os
+import json
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -17,8 +18,7 @@ from diverse_lift.kitchen_objects import OBJ_GROUPS
 from diverse_lift.kitchen_object_utils import sample_kitchen_object
 
 
-def sample_agod_object(name, idx=None, **obj_args):
-    # TODO: max size check
+def sample_agod_object(name, idx=None, max_size=0.14, **obj_args):
     # TODO: leave some test set out
 
     if idx is not None:
@@ -26,7 +26,23 @@ def sample_agod_object(name, idx=None, **obj_args):
     else:
         obj_path = np.random.choice(AGOD_OBJECT_PATH)
 
+    # Get the object size, and adjust the scale to not exceed max size
+    scale = obj_args["scale"] or None
+    if scale is not None:
+        with open(os.path.join(obj_path, "object_size.json"), "r") as f:
+            obj_size = json.load(f)
+
+        max_scale = [max_size / v for v in obj_size.values()]
+        obj_args["scale"] = [min(s, scale) for s in max_scale]
+
     model_xml = os.path.join(obj_path, "model.xml")
+    print(f"Loading the object from {model_xml}")
+
+    ### NOTE: if collision-related adjustment is needed, set values here
+    # obj_args["solref"] = (0.001, 1.5)
+    # obj_args["solimp"] = (0.90, 0.995, 0.01)
+    obj_args["margin"] = 0.001
+
     return MJCFObject(name, model_xml, **obj_args)
 
 
@@ -66,8 +82,7 @@ class DiverseLift(Lift):
         base_types="default",
         initialization_noise="default",
         table_full_size=(0.8, 0.8, 0.05),
-        # NOTE: agod objects have narrow contact. Try bit higher torsion/rolling friction.
-        table_friction=(2.0, 0.5, 0.1),
+        table_friction=(1.0, 0.1, 0.1),
         use_camera_obs=True,
         use_object_obs=True,
         reward_scale=1.0,
@@ -138,14 +153,12 @@ class DiverseLift(Lift):
             renderer_config=renderer_config,
         )
 
-        print()
-
     def _set_solver_xml(self, xml_str):
         tree = ET.fromstring(xml_str)
-        
+
         # Find the <option> tag. It's usually a direct child of the root <mujoco> tag.
         option_tag = find_elements(root=tree, tags="option", return_first=True)
-        
+
         if option_tag is None:
             # If <option> tag doesn't exist, create it
             option_tag = ET.Element("option")
@@ -159,7 +172,7 @@ class DiverseLift(Lift):
                 compiler_tag_idx = list(tree).index(compiler_tag)
                 tree.insert(compiler_tag_idx + 1, option_tag)
             else:
-                tree.insert(0, option_tag) # Or choose a more appropriate position
+                tree.insert(0, option_tag)  # Or choose a more appropriate position
 
         ### Set solver attributes
         # See https://mujoco.readthedocs.io/en/stable/modeling.html#calgorithms
@@ -167,12 +180,14 @@ class DiverseLift(Lift):
         elliptic cones, large impratio, and the Newton algorithm with very small tolerance.
         If that is not sufficient, enable the Noslip solver.
         """
-        option_tag.set("solver", "Newton")  # or CG, PGS. Newton is the default
-        option_tag.set("tolerance", str(1e-10))  # default: 1e-8
-        option_tag.set("cone", "elliptic")
+        # option_tag.set("timestep", str(0.0005))
+        # option_tag.set("solver", "Newton")  # or CG, PGS. Newton is the default
+        # option_tag.set("tolerance", str(1e-10))  # default: 1e-8
+        # option_tag.set("cone", "elliptic")
         # option_tag.set("impratio", str(50))  # robosuite default: 20
-        option_tag.set("noslip_iterations", str(3))
+        # option_tag.set("noslip_iterations", str(3))
         # option_tag.set("noslip_tolerance", str(1e-8))
+        # option_tag.set("integrator", "implicit")
 
         return ET.tostring(tree, encoding="utf8").decode("utf8")
 
@@ -192,8 +207,8 @@ class DiverseLift(Lift):
         """
         Loads an xml model, puts it in self.model
         """
-        # Add solver config to prevent AGOD objects drifting
-        self._xml_processors.insert(0, self._set_solver_xml)
+        # NOTE: If simulation is unstable, change the solver setting with below
+        # self._xml_processors.insert(0, self._set_solver_xml)
 
         # Load robots
         self._load_robots()
@@ -209,6 +224,9 @@ class DiverseLift(Lift):
             table_offset=self.table_offset,
         )
 
+        # NOTE: table collision can be changed like below
+        # mujoco_arena.table_collision.attrib["margin"] = "0.001"
+
         # Arena always gets set to zero origin
         mujoco_arena.set_origin([0, 0, 0])
 
@@ -216,8 +234,8 @@ class DiverseLift(Lift):
         name_hack = "cube"  # This is a hack
 
         if self._next_source is None or self._next_source == "agod":
-            scale = 0.7 + 0.3 * np.random.rand()
-            self.cube = sample_agod_object(name_hack, idx=self._next_group_or_index, scale=scale, rgba=[0.5, 0, 0, 1])
+            scale = 0.5 + np.random.rand()
+            self.cube = sample_agod_object(name_hack, idx=self._next_group_or_index, scale=scale, rgba=[1.0, 0.5, 0, 1])
         elif self._next_source == "objaverse":
             self.cube = sample_objaverse_object(name_hack, group=self._next_group_or_index)
 
@@ -230,7 +248,7 @@ class DiverseLift(Lift):
                 name="ObjectSampler",
                 mujoco_objects=self.cube or [],
                 x_range=[-0.1, 0.1],
-                y_range=[-0.1, 0.1],
+                y_range=[-0.05, 0.1],
                 ensure_object_boundary_in_range=False,
                 ensure_valid_placement=True,
                 reference_pos=self.table_offset,
@@ -257,13 +275,12 @@ if __name__ == "__main__":
         "DiverseLift",
         robots=["Panda"],
         has_renderer=True,
+        ignore_done=True,
     )
 
-    # env.config_next_sample(source="agod", group_or_index=2, prob_random_quat=1)
-    env.config_next_sample(source="objaverse", group_or_index="beer")
+    env.config_next_sample(source="agod", prob_random_quat=1, group_or_index=1)
+    # env.config_next_sample(source="objaverse", group_or_index="beer")
     env.reset()
     action = np.zeros(7)
-    for _ in range(10):
+    while True:
         env.step(action)
-
-    print()

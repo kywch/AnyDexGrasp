@@ -1,0 +1,15 @@
+# Created by Open3D 
+# object name: convex_6_coll
+# number of vertices: 5
+# number of triangles: 6
+v -0.01646 0.0481 -0.05949
+v -0.01139 0.0481 -0.05949
+v -0.01646 0.0481 -0.05696
+v -0.01646 0.05063 -0.05949
+v -0.01139 0.05063 -0.05696
+f 1 2 3
+f 1 4 2
+f 4 5 2
+f 2 5 3
+f 5 4 3
+f 4 1 3

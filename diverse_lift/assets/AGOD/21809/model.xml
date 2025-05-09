@@ -1,26 +1,29 @@
 <?xml version="1.0" ?>
 <mujoco model="agod_21809">
   <asset>
-    <mesh name="convex_0" file="meshes/convex_0.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_1" file="meshes/convex_1.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_2" file="meshes/convex_2.obj" scale="1.0 1.0 1.0"/>
     <material name="default_material" specular="0.5" shininess="0.25" rgba="0.7 0.7 0.7 1"/>
+    <mesh name="convex_0_vis" file="visual/convex_0.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_0_coll" file="collision/convex_0_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_1_vis" file="visual/convex_1.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_1_coll" file="collision/convex_1_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_2_vis" file="visual/convex_2.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_2_coll" file="collision/convex_2_coll.obj" scale="1.0 1.0 1.0"/>
   </asset>
   <worldbody>
     <body>
       <body name="object">
         <!-- Visual Geometry -->
-        <geom type="mesh" mesh="convex_0" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_1" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_2" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
         <!-- Collision Geometry -->
-        <geom type="mesh" mesh="convex_0" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_1" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_2" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_0_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_0_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_1_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_1_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_2_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_2_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
       </body>
-      <site rgba="0 0 0 0" size="0.005" name="bottom_site" pos="0.00000000000000000 0.00000000000000001 -0.04939149999999999"/>
-      <site rgba="0 0 0 0" size="0.005" name="top_site" pos="0.00000000000000000 0.00000000000000001 0.04939150000000000"/>
-      <site rgba="0 0 0 0" size="0.005" name="horizontal_radius_site" pos="0.07903199999999999 0.06421350000000001 0.00000000000000000"/>
+      <site rgba="0 0 0 0" size="0.005" name="bottom_site" pos="0.00000 0.00000 -0.04939"/>
+      <site rgba="0 0 0 0" size="0.005" name="top_site" pos="0.00000 0.00000 0.04939"/>
+      <site rgba="0 0 0 0" size="0.005" name="horizontal_radius_site" pos="0.07903 0.06421 0.00000"/>
     </body>
   </worldbody>
 </mujoco>

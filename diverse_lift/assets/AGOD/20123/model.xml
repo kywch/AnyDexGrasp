@@ -1,125 +1,161 @@
 <?xml version="1.0" ?>
 <mujoco model="agod_20123">
   <asset>
-    <mesh name="convex_0" file="meshes/convex_0.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_1" file="meshes/convex_1.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_2" file="meshes/convex_2.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_3" file="meshes/convex_3.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_4" file="meshes/convex_4.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_5" file="meshes/convex_5.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_6" file="meshes/convex_6.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_7" file="meshes/convex_7.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_8" file="meshes/convex_8.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_9" file="meshes/convex_9.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_10" file="meshes/convex_10.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_11" file="meshes/convex_11.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_12" file="meshes/convex_12.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_13" file="meshes/convex_13.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_14" file="meshes/convex_14.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_15" file="meshes/convex_15.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_16" file="meshes/convex_16.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_17" file="meshes/convex_17.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_18" file="meshes/convex_18.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_19" file="meshes/convex_19.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_20" file="meshes/convex_20.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_21" file="meshes/convex_21.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_22" file="meshes/convex_22.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_23" file="meshes/convex_23.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_24" file="meshes/convex_24.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_25" file="meshes/convex_25.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_26" file="meshes/convex_26.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_27" file="meshes/convex_27.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_28" file="meshes/convex_28.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_29" file="meshes/convex_29.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_30" file="meshes/convex_30.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_31" file="meshes/convex_31.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_32" file="meshes/convex_32.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_33" file="meshes/convex_33.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_34" file="meshes/convex_34.obj" scale="1.0 1.0 1.0"/>
-    <mesh name="convex_35" file="meshes/convex_35.obj" scale="1.0 1.0 1.0"/>
     <material name="default_material" specular="0.5" shininess="0.25" rgba="0.7 0.7 0.7 1"/>
+    <mesh name="convex_0_vis" file="visual/convex_0.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_0_coll" file="collision/convex_0_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_1_vis" file="visual/convex_1.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_1_coll" file="collision/convex_1_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_2_vis" file="visual/convex_2.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_2_coll" file="collision/convex_2_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_3_vis" file="visual/convex_3.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_3_coll" file="collision/convex_3_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_4_vis" file="visual/convex_4.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_4_coll" file="collision/convex_4_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_5_vis" file="visual/convex_5.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_5_coll" file="collision/convex_5_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_6_vis" file="visual/convex_6.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_6_coll" file="collision/convex_6_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_7_vis" file="visual/convex_7.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_7_coll" file="collision/convex_7_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_8_vis" file="visual/convex_8.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_8_coll" file="collision/convex_8_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_9_vis" file="visual/convex_9.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_9_coll" file="collision/convex_9_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_10_vis" file="visual/convex_10.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_10_coll" file="collision/convex_10_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_11_vis" file="visual/convex_11.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_11_coll" file="collision/convex_11_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_12_vis" file="visual/convex_12.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_12_coll" file="collision/convex_12_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_13_vis" file="visual/convex_13.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_13_coll" file="collision/convex_13_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_14_vis" file="visual/convex_14.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_14_coll" file="collision/convex_14_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_15_vis" file="visual/convex_15.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_15_coll" file="collision/convex_15_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_16_vis" file="visual/convex_16.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_16_coll" file="collision/convex_16_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_17_vis" file="visual/convex_17.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_17_coll" file="collision/convex_17_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_18_vis" file="visual/convex_18.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_18_coll" file="collision/convex_18_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_19_vis" file="visual/convex_19.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_19_coll" file="collision/convex_19_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_20_vis" file="visual/convex_20.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_20_coll" file="collision/convex_20_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_21_vis" file="visual/convex_21.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_21_coll" file="collision/convex_21_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_22_vis" file="visual/convex_22.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_22_coll" file="collision/convex_22_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_23_vis" file="visual/convex_23.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_23_coll" file="collision/convex_23_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_24_vis" file="visual/convex_24.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_24_coll" file="collision/convex_24_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_25_vis" file="visual/convex_25.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_25_coll" file="collision/convex_25_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_26_vis" file="visual/convex_26.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_26_coll" file="collision/convex_26_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_27_vis" file="visual/convex_27.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_27_coll" file="collision/convex_27_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_28_vis" file="visual/convex_28.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_28_coll" file="collision/convex_28_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_29_vis" file="visual/convex_29.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_29_coll" file="collision/convex_29_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_30_vis" file="visual/convex_30.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_30_coll" file="collision/convex_30_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_31_vis" file="visual/convex_31.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_31_coll" file="collision/convex_31_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_32_vis" file="visual/convex_32.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_32_coll" file="collision/convex_32_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_33_vis" file="visual/convex_33.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_33_coll" file="collision/convex_33_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_34_vis" file="visual/convex_34.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_34_coll" file="collision/convex_34_coll.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_35_vis" file="visual/convex_35.obj" scale="1.0 1.0 1.0"/>
+    <mesh name="convex_35_coll" file="collision/convex_35_coll.obj" scale="1.0 1.0 1.0"/>
   </asset>
   <worldbody>
     <body>
       <body name="object">
         <!-- Visual Geometry -->
-        <geom type="mesh" mesh="convex_0" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_1" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_2" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_3" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_4" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_5" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_6" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_7" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_8" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_9" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_10" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_11" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_12" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_13" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_14" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_15" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_16" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_17" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_18" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_19" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_20" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_21" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_22" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_23" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_24" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_25" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_26" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_27" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_28" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_29" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_30" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_31" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_32" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_33" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_34" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
-        <geom type="mesh" mesh="convex_35" material="default_material" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" conaffinity="0" contype="0" group="1"/>
         <!-- Collision Geometry -->
-        <geom type="mesh" mesh="convex_0" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_1" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_2" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_3" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_4" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_5" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_6" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_7" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_8" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_9" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_10" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_11" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_12" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_13" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_14" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_15" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_16" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_17" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_18" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_19" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_20" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_21" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_22" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_23" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_24" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_25" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_26" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_27" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_28" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_29" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_30" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_31" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_32" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_33" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_34" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
-        <geom type="mesh" mesh="convex_35" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_0_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_0_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_1_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_1_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_2_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_2_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_3_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_3_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_4_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_4_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_5_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_5_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_6_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_6_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_7_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_7_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_8_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_8_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_9_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_9_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_10_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_10_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_11_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_11_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_12_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_12_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_13_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_13_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_14_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_14_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_15_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_15_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_16_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_16_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_17_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_17_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_18_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_18_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_19_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_19_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_20_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_20_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_21_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_21_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_22_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_22_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_23_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_23_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_24_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_24_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_25_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_25_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_26_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_26_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_27_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_27_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_28_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_28_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_29_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_29_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_30_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_30_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_31_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_31_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_32_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_32_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_33_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_33_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_34_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_34_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
+        <geom type="mesh" mesh="convex_35_vis" material="default_material" conaffinity="0" contype="0" group="1"/>
+        <geom type="mesh" mesh="convex_35_coll" solimp="0.998 0.998 0.001" solref="0.001 1" density="100" friction="0.95 0.3 0.1" group="0" rgba="0.8 0.8 0.8 0.0"/>
       </body>
-      <site rgba="0 0 0 0" size="0.005" name="bottom_site" pos="-0.00000000000000001 0.00000000000000000 -0.07721200000000000"/>
-      <site rgba="0 0 0 0" size="0.005" name="top_site" pos="-0.00000000000000001 0.00000000000000000 0.07721200000000000"/>
-      <site rgba="0 0 0 0" size="0.005" name="horizontal_radius_site" pos="0.07468100000000000 0.08100900000000000 0.00000000000000000"/>
+      <site rgba="0 0 0 0" size="0.005" name="bottom_site" pos="0.00000 0.00000 -0.07721"/>
+      <site rgba="0 0 0 0" size="0.005" name="top_site" pos="0.00000 0.00000 0.07721"/>
+      <site rgba="0 0 0 0" size="0.005" name="horizontal_radius_site" pos="0.07468 0.08101 0.00000"/>
     </body>
   </worldbody>
 </mujoco>

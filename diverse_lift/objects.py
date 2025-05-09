@@ -25,7 +25,7 @@ class MJCFObject(MujocoXMLObject):
         solref=(0.001, 1),
         density=100,
         friction=(0.95, 0.3, 0.1),
-        joint_damping=0.001,
+        joint_damping=0.0001,
         margin=None,
         rgba=None,
         priority=None,

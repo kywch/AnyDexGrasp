@@ -1,0 +1,15 @@
+# Created by Open3D 
+# object name: convex_19_coll
+# number of vertices: 5
+# number of triangles: 6
+v 0.00433 0.00289 0.00868
+v 0.00433 -0.00868 0.00868
+v 0.00433 0.00289 0.00579
+v 0.00144 0.00289 0.00868
+v 0.00144 -0.00868 0.00579
+f 1 2 3
+f 1 4 2
+f 4 5 2
+f 2 5 3
+f 5 4 3
+f 4 1 3

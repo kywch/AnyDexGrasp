@@ -31,3 +31,9 @@ experiments/*
 best_models/*
 assets/*
 diverse_lift/assets/objaverse
+
+agod_objects/objectMeshes
+agod_objects/observedGraspability
+agod_objects/plots
+agod_objects/predictedGraspability
+agod_objects/spaceExplorationLog
