@@ -19,6 +19,9 @@ from AnyDexGrasp.utils.graspnet_utils import GraspNetRunner, flip_ggarray, get_t
 from robosuite_env import make_robosuite_env, env_reset_get_camera_obs, execute_grasp
 from InspireHandR_grasp import InspireHandRGraspGroup
 
+from diverse_lift import AGOD_OBJECT_PATH
+from diverse_lift.kitchen_objects import OBJ_CATEGORIES
+
 # NOTE: This is to fix the error when loading the author's pre-trained models using torch.load()
 sys.modules["minkowski_graspnet"] = minkowski_graspnet
 
@@ -65,8 +68,15 @@ def parse_arguments():
     # parser.add_argument("--render", action="store_true", help="Render the scene")
     parser.add_argument("--render", default=True, help="Render the scene")
     parser.add_argument("--camera_name", default="robot0_eye_in_hand", help="Robosuite camera name to use")
-    parser.add_argument("--num_trial", default=20, type=int, help="Number of trials")
     parser.add_argument("--num_multifinger_depth", default=2, type=int, help="Number of multifinger depth levels")
+
+    parser.add_argument(
+        "--mode",
+        default="random",
+        choices=["random", "agod", "objaverse", "prob_suggestion", "prob_execution"],
+    )
+    parser.add_argument("--num_trial", default=20, type=int, help="Number of trials (only for random)")
+
     args = parser.parse_args()
 
     return args
@@ -216,6 +226,7 @@ def choose_grasp(
     meshes_pcls,
     min_grasp_width=MIN_GRASP_WIDTH,
     max_try_sample=5,
+    visualize=False,
 ):
     cnt_try_sample = 0
 
@@ -227,7 +238,9 @@ def choose_grasp(
         ### Sample ggarray
         print(f"Sampling grasp, try {cnt_try_sample} ...")
         if cnt_try_sample <= 1:
-            ggarray, points_down, grasp_features, sinput = graspnet_runner.get_grasp(depth_map, camera, object_mask)
+            ggarray, points_down, grasp_features, sinput = graspnet_runner.get_grasp(
+                depth_map, camera, object_mask, visualize=visualize
+            )
         else:
             ggarray, points_down, grasp_features, sinput = graspnet_runner.get_ggarray_features(
                 depth_map, camera, object_mask, num_augment=cnt_try_sample
@@ -316,6 +329,95 @@ def choose_grasp(
     return InspireHandR_ggarray, two_fingers_ggarray, grasp_features, inspire_depth, points_down
 
 
+ALL_OBJAVERSE_PATH = [
+    p
+    for k in OBJ_CATEGORIES.keys()
+    if "objaverse" in OBJ_CATEGORIES[k]
+    for p in OBJ_CATEGORIES[k]["objaverse"].mjcf_paths
+]
+
+
+def key_in_path(path, key):
+    for k in key:
+        if k in path:
+            return True
+    return False
+
+
+PROB_SUGGEST_OBJAVERSE = [
+    "water_bottle",
+    "cupcake",
+    "bottled_",
+    "spray_0",
+    "fish_2",
+    "eggplant_2",
+    "cheese_1",
+    "cheese_2",
+    "corn_1",
+    "wine_12",
+    "baguette_1",
+    "ketchup_0",
+    "kettle_0",
+]
+PROB_SUGGEST_PATH = [p for p in ALL_OBJAVERSE_PATH if key_in_path(p, PROB_SUGGEST_OBJAVERSE)] + [
+    os.path.join(p, "model.xml")
+    for p in AGOD_OBJECT_PATH
+    if key_in_path(p, ["24891", "23279", "20123", "22262", "22941"])
+] * 4
+
+PROB_EXECUTE_PATH = [
+    p for p in ALL_OBJAVERSE_PATH if key_in_path(p, ["kettle", "pan", "teapot", "cereal", "donut"])
+] + [
+    os.path.join(p, "model.xml")
+    for p in AGOD_OBJECT_PATH
+    if key_in_path(p, ["23156", "24806", "21352", "24466", "70799", "22017"])
+] * 4
+
+
+def set_next_trial(cfgs, robot_env, n):
+    # NOTE: use DiverseLift's config_next_sample
+    is_done = cfgs.num_trial <= n
+
+    if not hasattr(robot_env, "config_next_sample"):
+        pass
+
+    elif cfgs.mode == "random":
+        if n % 2 == 0:
+            robot_env.config_next_sample(source="objaverse")
+        else:
+            random_quat = int(bool(n % 3))  # 33% 0 or 67% 1
+            robot_env.config_next_sample(source="agod", prob_random_quat=random_quat)
+
+    elif cfgs.mode == "agod":
+        num_agod = len(AGOD_OBJECT_PATH)
+        # repeat 3 times
+        is_done = 3 * num_agod <= n
+        random_quat = int(bool(n // num_agod))
+        path_idx = os.path.join(AGOD_OBJECT_PATH[n % num_agod], "model.xml")
+        robot_env.config_next_sample(source="agod", group_or_index=path_idx, prob_random_quat=random_quat)
+
+    elif cfgs.mode == "objaverse":
+        num_objaverse = len(ALL_OBJAVERSE_PATH)
+        is_done = num_objaverse <= n
+        robot_env.config_next_sample(source="objaverse", group_or_index=ALL_OBJAVERSE_PATH[n % num_objaverse])
+
+    elif cfgs.mode == "prob_suggestion":
+        num_prob = len(PROB_SUGGEST_PATH)
+        is_done = 3 * num_prob <= n
+        idx = n % num_prob
+        source = "objaverse" if "objaverse" in PROB_SUGGEST_PATH[idx] else "agod"
+        robot_env.config_next_sample(source=source, group_or_index=PROB_SUGGEST_PATH[idx])
+
+    if cfgs.mode == "prob_execution":
+        num_prob = len(PROB_EXECUTE_PATH)
+        is_done = 3 * num_prob <= n
+        idx = n % num_prob
+        source = "objaverse" if "objaverse" in PROB_EXECUTE_PATH[idx] else "agod"
+        robot_env.config_next_sample(source=source, group_or_index=PROB_EXECUTE_PATH[idx])
+
+    return is_done
+
+
 def run_eval(cfgs):
     inspire_models = get_inspire_model(cfgs.inspire_model_path)
     meshes_pcls = load_meshes_pointcloud(cfgs.inspire_mesh_json_path, voxel_grid=INSPIREHANDR_VOXEL_GRID)
@@ -330,16 +432,11 @@ def run_eval(cfgs):
     )
 
     num_success = 0
-    for n in range(cfgs.num_trial):
-        print("Trial", n + 1)
-
-        # When using DiverseLift
-        if hasattr(robot_env, "config_next_sample"):
-            if n % 2 == 0:
-                robot_env.config_next_sample(source="objaverse")
-            else:
-                random_quat = int(bool(n % 3))  # 33% 0 or 67% 1
-                robot_env.config_next_sample(source="agod", prob_random_quat=random_quat)
+    n, is_done = 0, False
+    while not is_done:
+        n += 1
+        print("Trial", n)
+        is_done = set_next_trial(cfgs, robot_env, n)
 
         camera, obs_dict = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
 
@@ -374,9 +471,11 @@ def run_eval(cfgs):
             object_mask,
             inspire_mesh_json_path=cfgs.inspire_mesh_json_path,
             meshes_pcls=meshes_pcls,
+            visualize=cfgs.render,
         )
 
         result = {
+            "object": target_obj,
             "used_grasp_type": None,
             "is_success": None,
         }
@@ -406,7 +505,7 @@ def run_eval(cfgs):
             grab_site_offset=GRAB_SITE_OFFSET,
         )
         num_success += is_success
-        print(f"Result: {'success' if is_success else 'fail'}. So far {num_success} / {n + 1}\n")
+        print(f"Result: {'success' if is_success else 'fail'}. So far {num_success} / {n}\n")
         by_object[target_obj]["success"] += is_success
 
         result["used_grasp_type"] = int(InspireHandR_grasp_used.grasp_type)
@@ -430,25 +529,29 @@ if __name__ == "__main__":
     results_by_type = {}
     suggested = {}
     for t in results:
+        if t["is_success"] is None:  # No grasp found, so the trial skipped
+            continue
+
         if t["used_grasp_type"] not in results_by_type:
             results_by_type[t["used_grasp_type"]] = {"count": 1, "success": t["is_success"]}
         else:
             results_by_type[t["used_grasp_type"]]["count"] += 1
             results_by_type[t["used_grasp_type"]]["success"] += t["is_success"]
 
-        for g in t["top5_grasp"]:
-            if g[0] not in suggested:
-                suggested[g[0]] = 1
-            else:
-                suggested[g[0]] += 1
+        if "top5_grasp" in t:
+            for g in t["top5_grasp"]:
+                if g[0] not in suggested:
+                    suggested[g[0]] = 1
+                else:
+                    suggested[g[0]] += 1
 
     results_by_type = {k: v for k, v in sorted(results_by_type.items())}
     for k, v in results_by_type.items():
         results_by_type[k]["success_rate"] = v["success"] / v["count"]
 
-    result_file = f"{cfgs.result_file_prefix}_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.json"
+    result_file = f"eval_{cfgs.mode}_{datetime.datetime.now().strftime('%m%d-%H%M%S')}.json"
     result_dict = cfgs.__dict__
-    result_dict["overall_success_rate"] = np.mean([r["is_success"] for r in results])
+    result_dict["overall_success_rate"] = np.mean([r["is_success"] for r in results if r["is_success"] is not None])
     result_dict["results_by_type"] = results_by_type
     result_dict["suggested"] = {k: v for k, v in sorted(suggested.items())}
     result_dict["results_by_object"] = by_object

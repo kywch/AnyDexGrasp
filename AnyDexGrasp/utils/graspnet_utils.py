@@ -219,7 +219,15 @@ class GraspNetRunner:
         self.network.load_state_dict(checkpoint["model_state_dict"])
 
     def get_grasp(
-        self, depth_map, camera, object_mask, augment_mat=None, voxel_size=0.005, flip=False, z_axis_filter_deg=60
+        self,
+        depth_map,
+        camera,
+        object_mask,
+        augment_mat=None,
+        voxel_size=0.005,
+        flip=False,
+        z_axis_filter_deg=60,
+        visualize=False,
     ):
         # NOTE: in the original code, color map was only used for visuzlizing with open3d
 
@@ -291,12 +299,26 @@ class GraspNetRunner:
         object_filter = object_mask[pixel_coords[:, 0], pixel_coords[:, 1]].squeeze()
         object_filter = torch.tensor(object_filter, dtype=bool).to(preds.device)
 
+        """ for debugging
+        manual_flt = (-0.35 < preds[:, 12]) & (preds[:, 12] < -0.1) & (preds[:, 13] > -0.16) & (preds[:, 13] < 0)
+        pixel_coords[manual_flt.cpu().numpy()]
+        """
+
         mask = z_filter & object_filter
         preds = preds[mask]
         grasp_features = grasp_features[0][mask]
         if len(preds) == 0:
             print("No grasp detected after grasp width filtering")
             return None, points.cuda(), None, [sinput]
+
+        # visualize before filtering
+        if visualize:
+            resp = input("Enter y to visualize graspnet output: ")
+            if resp == "y":
+                heights = 0.03 * torch.ones([preds.shape[0], 1]).cuda()
+                object_ids = -1 * torch.ones([preds.shape[0], 1]).cuda()
+                ggarray = torch.cat([preds[:, 0:2], heights, preds[:, 2:15], preds[:, 15:16], object_ids], axis=-1)
+                self._visualize(points, ggarray)
 
         points = points.cuda()
         heights = 0.03 * torch.ones([preds.shape[0], 1]).cuda()

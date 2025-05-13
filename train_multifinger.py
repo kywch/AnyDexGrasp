@@ -55,18 +55,21 @@ def parse_arguments():
         "--num_multifinger_depth",
         type=int,
         default=2,  # NOTE: the original used 4 depth levels, but here opting for 2
-        help="Number of depth levels for multifinger grasp"
+        help="Number of depth levels for multifinger grasp",
     )
 
     parser.add_argument(
         "--train_data_file",
-        # default="logs/data/decision_model/inspire/obj40/obj40_single_point.json",
-        default="inspire_train_500_0506.pkl",
+        default="train_data/inspire_merged_939_0513.pkl",
         help="Path to the training data file",
     )
-    parser.add_argument("--test_data_file", default="inspire_test_100_0506.pkl", help="Path to the test data file")
     parser.add_argument(
-        "--train_split_ratio", type=float, default=0.8, help="Ratio of data to use for training (0.0 to 1.0)"
+        "--test_data_file",
+        default=None,  # "inspire_test_100_0506.pkl",
+        help="Path to the test data file",
+    )
+    parser.add_argument(
+        "--train_split_ratio", type=float, default=0.9, help="Ratio of data to use for training (0.0 to 1.0)"
     )
     parser.add_argument("--log_dir", default="experiments", help="Directory to save logs and model checkpoints")
 
@@ -80,7 +83,7 @@ def parse_arguments():
     # Checkpointing
     parser.add_argument(
         "--checkpoint_metric",
-        default="f1_0.5",
+        default="f1_0.9",
         help="Metric used to determine the best checkpoint (e.g., f1_0.9, recall_0.7)",
     )
 
@@ -436,14 +439,14 @@ def train(config):
 
     # --- Create Experiment Directory ---
     # Construct a unique name for this experiment run
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     experiment_name = f"{config.gripper_type}_type{config.train_multifinger_type}_{timestamp}"
     log_dir = os.path.join(config.log_dir, experiment_name)
 
     # --- Initial Setup ---
     if os.path.exists(log_dir) and config.overwrite:
         logging.warning(f"Log directory {log_dir} exists and overwrite is True. Removing existing directory.")
-        os.system(f"rm -r {log_dir}") # Use with caution!
+        os.system(f"rm -r {log_dir}")  # Use with caution!
 
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
@@ -463,7 +466,7 @@ def train(config):
     os.makedirs(os.path.join(tensorboard_dir, "test"), exist_ok=True)
 
     config_path = os.path.join(log_dir, "config.json")
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         json.dump(vars(config), f, indent=4)
     logging.info(f"Saved configuration to {config_path}")
 
@@ -537,10 +540,10 @@ def train(config):
                 "config": config,
             },
             is_best,
-            checkpoint_dir, # Pass the specific checkpoint directory
-            config.checkpoint_metric, # Pass metric name for filename
-            current_metric_val, # Pass metric value for filename
-            filename_prefix=f"{config.gripper_type}_type{config.train_multifinger_type}"
+            checkpoint_dir,  # Pass the specific checkpoint directory
+            config.checkpoint_metric,  # Pass metric name for filename
+            current_metric_val,  # Pass metric value for filename
+            filename_prefix=f"{config.gripper_type}_type{config.train_multifinger_type}",
         )
 
         logging.info(f"Best evaluation metric ({config.checkpoint_metric}) so far: {best_metric_val:.4f}")

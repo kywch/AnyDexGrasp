@@ -27,10 +27,14 @@ from diverse_lift.kitchen_object_utils import sample_kitchen_object
 def sample_agod_object(name, idx=None, max_size=0.14, **obj_args):
     # TODO: leave some test set out
 
-    if idx is not None:
+    if idx is None:
+        obj_path = np.random.choice(AGOD_OBJECT_PATH)
+    elif os.path.exists(idx):
+        obj_path = os.path.dirname(idx)  # this is hack
+    elif isinstance(idx, int):
         obj_path = AGOD_OBJECT_PATH[idx]
     else:
-        obj_path = np.random.choice(AGOD_OBJECT_PATH)
+        raise ValueError("Invalid idx specified")
 
     target = "agod_" + os.path.basename(obj_path)
 
@@ -302,9 +306,9 @@ class DiverseLift(Lift):
         seg_map = CU.get_camera_segmentation(self.sim, cam_name, height, width)[:, :, [1]]  # ones containing geom ids
 
         # target object geom
-        geom_id = self.sim.model.geom_name2id(self.cube.visual_geoms[0])
+        geom_ids = [self.sim.model.geom_name2id(g) for g in self.cube.visual_geoms]
 
-        object_mask = ndimage.median_filter(seg_map == geom_id, 5)
+        object_mask = ndimage.median_filter(np.isin(seg_map, geom_ids), 5)
 
         return object_mask
 
