@@ -3,6 +3,7 @@ import json
 import xml.etree.ElementTree as ET
 
 import numpy as np
+from scipy import ndimage
 
 import robosuite
 from robosuite.models.arenas import TableArena
@@ -10,7 +11,12 @@ from robosuite.models.tasks import ManipulationTask
 from robosuite.utils.placement_samplers import UniformRandomSampler
 from robosuite.utils.transform_utils import convert_quat, random_quat
 from robosuite.utils.mjcf_utils import find_elements
+import robosuite.utils.camera_utils as CU
+
 from robosuite.environments.manipulation.lift import Lift
+
+# NOTE: this is for debugging
+# from diverse_lift.rs_debug.lift import Lift
 
 from diverse_lift import AGOD_OBJECT_PATH
 from diverse_lift.objects import MJCFObject
@@ -25,6 +31,8 @@ def sample_agod_object(name, idx=None, max_size=0.14, **obj_args):
         obj_path = AGOD_OBJECT_PATH[idx]
     else:
         obj_path = np.random.choice(AGOD_OBJECT_PATH)
+
+    target = "agod_" + os.path.basename(obj_path)
 
     # Get the object size, and adjust the scale to not exceed max size
     scale = obj_args["scale"] or None
@@ -43,12 +51,12 @@ def sample_agod_object(name, idx=None, max_size=0.14, **obj_args):
     # obj_args["solimp"] = (0.90, 0.995, 0.01)
     obj_args["margin"] = 0.001
 
-    return MJCFObject(name, model_xml, **obj_args)
+    return MJCFObject(name, model_xml, **obj_args), target
 
 
 def sample_objaverse_object(name, group=None, split="A"):
     if group is not None:
-        assert group in OBJ_GROUPS, "Invalid group specified"
+        assert group in OBJ_GROUPS or (group.endswith(".xml") and os.path.exists(group)), "Invalid group specified"
 
     mjcf_kwargs, _ = sample_kitchen_object(
         groups=group or "all",
@@ -56,7 +64,11 @@ def sample_objaverse_object(name, group=None, split="A"):
         obj_registries=["objaverse"],
         split=split,  # A: first half, B: second half, None: all
     )
-    return MJCFObject(name, **mjcf_kwargs)
+
+    target = "objaverse_" + os.path.basename(os.path.dirname(mjcf_kwargs["mjcf_path"]))
+    print(f"Loading {target}")
+
+    return MJCFObject(name, **mjcf_kwargs), target
 
 
 class RandomOrientationSampler(UniformRandomSampler):
@@ -122,6 +134,7 @@ class DiverseLift(Lift):
         # object placement initializer
         self.placement_initializer = placement_initializer
 
+        self.target_object = None
         self._next_source = None
         self._next_group_or_index = None
         self._next_prob_random_quat = None
@@ -196,7 +209,10 @@ class DiverseLift(Lift):
         self._next_source = source
 
         assert (
-            group_or_index is None or group_or_index in OBJ_GROUPS or group_or_index in range(len(AGOD_OBJECT_PATH))
+            group_or_index is None
+            or group_or_index in OBJ_GROUPS
+            or group_or_index in range(len(AGOD_OBJECT_PATH))
+            or (group_or_index.endswith(".xml") and os.path.exists(group_or_index))
         ), "Invalid group specified"
         self._next_group_or_index = group_or_index
 
@@ -235,9 +251,11 @@ class DiverseLift(Lift):
 
         if self._next_source is None or self._next_source == "agod":
             scale = 0.5 + np.random.rand()
-            self.cube = sample_agod_object(name_hack, idx=self._next_group_or_index, scale=scale, rgba=[1.0, 0.5, 0, 1])
+            self.cube, self.target_object = sample_agod_object(
+                name_hack, idx=self._next_group_or_index, scale=scale, rgba=[1.0, 0.5, 0, 1]
+            )
         elif self._next_source == "objaverse":
-            self.cube = sample_objaverse_object(name_hack, group=self._next_group_or_index)
+            self.cube, self.target_object = sample_objaverse_object(name_hack, group=self._next_group_or_index)
 
         # Create placement initializer
         if self.placement_initializer is not None:
@@ -265,9 +283,35 @@ class DiverseLift(Lift):
             mujoco_objects=self.cube,
         )
 
+    def _check_success(self):
+        """
+        Check if object has been lifted.
+
+        Returns:
+            bool: True if object has been lifted
+        """
+        cube_height = self.sim.data.body_xpos[self.cube_body_id][2]
+        table_height = self.model.mujoco_arena.table_offset[2]
+
+        # cube is higher than the table top above a margin
+        return cube_height > table_height + 0.11
+
+    def get_object_mask(self):
+        # NOTE: use only one camera for now.
+        cam_name, height, width = self.camera_names[0], self.camera_heights[0], self.camera_widths[0]
+        seg_map = CU.get_camera_segmentation(self.sim, cam_name, height, width)[:, :, [1]]  # ones containing geom ids
+
+        # target object geom
+        geom_id = self.sim.model.geom_name2id(self.cube.visual_geoms[0])
+
+        object_mask = ndimage.median_filter(seg_map == geom_id, 5)
+
+        return object_mask
+
 
 if __name__ == "__main__":
     from robosuite.environments.base import register_env
+    from diverse_lift import OBJAVERSE_PATH
 
     register_env(DiverseLift)
 
@@ -278,8 +322,9 @@ if __name__ == "__main__":
         ignore_done=True,
     )
 
-    env.config_next_sample(source="agod", prob_random_quat=1, group_or_index=1)
-    # env.config_next_sample(source="objaverse", group_or_index="beer")
+    # env.config_next_sample(source="agod", prob_random_quat=1, group_or_index=1)
+    env.config_next_sample(source="objaverse", group_or_index="beer")
+    # env.config_next_sample(source="objaverse", group_or_index=os.path.join(OBJAVERSE_PATH, "cake/cake_2/model.xml"))
     env.reset()
     action = np.zeros(7)
     while True:

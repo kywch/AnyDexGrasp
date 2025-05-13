@@ -5,6 +5,10 @@ import numpy as np
 
 import MinkowskiEngine as ME
 
+import open3d as o3d
+from graspnetAPI import GraspGroup
+import robosuite.utils.camera_utils as CU
+
 from ..models.minkowski_graspnet import MinkowskiGraspNet
 from .pt_utils import batch_viewpoint_params_to_matrix
 from .np_utils import transform_point_cloud
@@ -214,7 +218,9 @@ class GraspNetRunner:
         checkpoint = torch.load(graspnet_path)
         self.network.load_state_dict(checkpoint["model_state_dict"])
 
-    def get_grasp(self, depth_map, augment_mat=None, voxel_size=0.005, flip=False):
+    def get_grasp(
+        self, depth_map, camera, object_mask, augment_mat=None, voxel_size=0.005, flip=False, z_axis_filter_deg=60
+    ):
         # NOTE: in the original code, color map was only used for visuzlizing with open3d
 
         points_z = depth_map / self.camera_scale
@@ -222,6 +228,7 @@ class GraspNetRunner:
         points_y = self._points_y_norm * points_z
 
         # The distances from the wrist camera
+        # CHECK WITH hist, edges = np.histogram(points_z)
         mask = (points_z > 0.3) & (points_z < 0.6)
         points = np.stack([points_x, points_y, points_z], axis=-1)
         points = points[mask].astype(np.float32)
@@ -269,14 +276,22 @@ class GraspNetRunner:
             pose_rotation[:, :, 1] = -pose_rotation[:, :, 1]
         preds[:, 3:12] = pose_rotation.view((-1, 9))
 
-        # CHECK the hardcoded numbers
-        # Something like ... preserves the grasp poses that are within a 30-degree angle with the vertical pose
-        mask = (preds[:, 9] > 0.85) & (preds[:, 1] < self.max_grasp_width) & (preds[:, 1] > self.min_grasp_width)
+        z_thresh = np.cos(z_axis_filter_deg * np.pi / 180)  # up to 75-deg
+        z_filter = (
+            (preds[:, 9] > z_thresh) & (preds[:, 1] < self.max_grasp_width) & (preds[:, 1] > self.min_grasp_width)
+        )
 
-        # The second mask preserves the grasp poses within the workspace of the robot.
-        # workspace_mask = (preds[:, 12] > -0.25) & (preds[:, 12] < 0.25) & (preds[:, 13] > -0.20) & (preds[:, 13] < 0.05)
-        # NOTE: preds[:, 12] and preds[:, 13] are in camera coordinates, so the above numbers are a bit wrong.
+        grasp_points = preds[:, [12, 13, 14]].detach().cpu().numpy()
+        pixel_coords = CU.project_points_from_world_to_camera(
+            grasp_points,
+            camera.camera_to_pixel_mat,
+            camera.width,
+            camera.height,
+        ).astype(np.int32)
+        object_filter = object_mask[pixel_coords[:, 0], pixel_coords[:, 1]].squeeze()
+        object_filter = torch.tensor(object_filter, dtype=bool).to(preds.device)
 
+        mask = z_filter & object_filter
         preds = preds[mask]
         grasp_features = grasp_features[0][mask]
         if len(preds) == 0:
@@ -289,6 +304,15 @@ class GraspNetRunner:
         ggarray = torch.cat([preds[:, 0:2], heights, preds[:, 2:15], preds[:, 15:16], object_ids], axis=-1)
 
         return ggarray, points, grasp_features, [sinput]
+
+    def _visualize(self, points, ggarray, width=1024, height=640):
+        cloud = o3d.geometry.PointCloud()
+        cloud.points = o3d.utility.Vector3dVector(points.cpu().numpy())
+
+        gg = GraspGroup(ggarray.detach().cpu().numpy())
+        grippers = gg.to_open3d_geometry_list()
+
+        o3d.visualization.draw_plotly([cloud, *grippers], width=width, height=height)
 
     def _get_augment_mat(self, flip=False):
         flip_mat = np.eye(4)
@@ -309,21 +333,29 @@ class GraspNetRunner:
         aug_mat = np.dot(trans_mat, np.dot(rot_mat, flip_mat).astype(np.float32)).astype(np.float32)
         return aug_mat
 
-    def get_ggarray_features(self, depth_map, num_augment=0):
+    def get_ggarray_features(self, depth_map, camera, object_mask, num_augment=0):
         augment_mat, ggarray = np.eye(4), None
-        while ggarray is None:
-            ggarray, points_down, grasp_features, sinput = self.get_grasp(depth_map, augment_mat)
+        for i in range(num_augment):
+            ggarray, points_down, grasp_features, sinput = self.get_grasp(depth_map, camera, object_mask, augment_mat)
 
             # This gets used when ggarray is None
             augment_mat = self._get_augment_mat()
 
+            if ggarray is not None:
+                break
+
+        if ggarray is None:
+            return None, points_down.cuda(), None, [sinput]
+
         # Augment point cloud
-        for i in range(num_augment):
-            flip = i % 2
+        for j in range(i, num_augment):
+            flip = j % 2
             augment_mat = self._get_augment_mat(flip)
 
             ggarray2, _, grasp_features2, sinput2 = self.get_grasp(
                 depth_map,
+                camera,
+                object_mask,
                 augment_mat,
                 flip=flip,
             )

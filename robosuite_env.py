@@ -13,6 +13,7 @@ from robosuite.models.robots import Panda
 from robosuite.models.robots.robot_model import register_robot
 from robosuite.models.grippers import register_gripper
 from robosuite.models.grippers.inspire_hands import InspireRightHand
+from robosuite.environments.base import register_env
 
 import robosuite.utils.transform_utils as T
 import robosuite.utils.camera_utils as CU
@@ -24,6 +25,11 @@ from robosuite.controllers.composite.composite_controller_factory import refacto
 # Print out the 6 dof actions for the arm
 
 from InspireHandR_grasp import GRASP_TYPES
+
+from diverse_lift.lift_env import DiverseLift
+
+register_env(DiverseLift)
+
 
 INSPIRE_WIDTH_ANGLE_JSON = "generate_mesh_and_pointcloud/inspire_urdf/width_12Dangle_6Dangle.json"
 
@@ -289,6 +295,7 @@ def make_robosuite_env(
         camera_depths=[True],
         camera_heights=[int(camera_height)],
         camera_widths=[int(camera_width)],
+        # camera_segmentations="class",  # too slow
         control_freq=20,
     )
 
@@ -313,9 +320,7 @@ def env_reset_get_camera_obs(robot_env, camera_name, init_eef_pos, camera_height
     for _ in range(50):
         obs_dict, _, _, _ = robot_env.step(search_pose)
 
-    camera = RobosuiteCameraInfo(
-        robot_env.sim, camera_name, camera_height=camera_height, camera_width=camera_width
-    )
+    camera = RobosuiteCameraInfo(robot_env.sim, camera_name, camera_height=camera_height, camera_width=camera_width)
 
     return camera, obs_dict
 
@@ -382,6 +387,9 @@ def execute_grasp(env, camera, inspire_grasp, twofinger_grasp, grab_site_offset=
 
     grab_pose[:6] = approach_pose[:6]
     lift_pose[:6] = ready_pose[:6]
+    lift_pose[:3] -= 0.05 * apprach_vec
+    if lift_pose[3] < 1.0:
+        lift_pose[3] = 1.0
 
     move_eef_to(env, ready_pose)
     move_eef_to(env, approach_pose)
@@ -442,7 +450,10 @@ if __name__ == "__main__":
     gripper_seq = [-1.0] * 10 + list(np.arange(-1, 1, 0.042)) + [1.0] * 2 + list(np.arange(1, -1, -0.042))
 
     ### Setup the robot and env
-    env = make_robosuite_env()
+    env = make_robosuite_env(task="DiverseLift")
+
+    # env.config_next_sample(source="agod", prob_random_quat=1.0, group_or_index=0)
+    env.config_next_sample(source="objaverse")
     env.reset()
     env.step(np.zeros(7))
 

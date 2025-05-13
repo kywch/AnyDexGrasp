@@ -31,6 +31,7 @@ experiments/*
 best_models/*
 assets/*
 diverse_lift/assets/objaverse
+train_data/*
 
 agod_objects/objectMeshes
 agod_objects/observedGraspability

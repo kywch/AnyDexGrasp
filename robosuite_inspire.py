@@ -26,8 +26,8 @@ sys.modules["minkowski_graspnet"] = minkowski_graspnet
 DEBUG = False
 RANDOM_GRASP = False
 
-MAX_GRASP_WIDTH = 0.1
-MIN_GRASP_WIDTH = 0.01
+MAX_GRASP_WIDTH = 0.11
+MIN_GRASP_WIDTH = 0.04
 
 NUM_OF_INSPIRE_DEPTH = 2
 NUM_OF_INSPIRE_TYPE = 8
@@ -36,7 +36,7 @@ INSPIREHANDR_VOXEL_GRID = 0.003
 GRASP_SCORE_THRESHOLD = 0.85
 COLLISION_APPROACH_DIST = 0.06
 
-EEF_SEARCH_POS = np.array([0.10, -0.20, 0.10])  # camera can view the whole table
+EEF_SEARCH_POS = np.array([0.10, -0.25, 0.15])  # camera can view the whole table
 GRAB_SITE_OFFSET = np.array([-0.01, 0, 0])  # in the grip frame
 
 
@@ -61,10 +61,11 @@ def parse_arguments():
         default="inspire_eval",
         help="Prefix for the result file name",
     )
-    parser.add_argument("--task", default="Lift", help="Robosuite task")
-    parser.add_argument("--render", action="store_true", help="Render the scene")
+    parser.add_argument("--task", default="DiverseLift", help="Robosuite task")
+    # parser.add_argument("--render", action="store_true", help="Render the scene")
+    parser.add_argument("--render", default=True, help="Render the scene")
     parser.add_argument("--camera_name", default="robot0_eye_in_hand", help="Robosuite camera name to use")
-    parser.add_argument("--num_trial", default=100, type=int, help="Number of trials")
+    parser.add_argument("--num_trial", default=20, type=int, help="Number of trials")
     parser.add_argument("--num_multifinger_depth", default=2, type=int, help="Number of multifinger depth levels")
     args = parser.parse_args()
 
@@ -209,6 +210,8 @@ def choose_grasp(
     graspnet_runner,
     inspire_models,
     depth_map,
+    camera,
+    object_mask,
     inspire_mesh_json_path,
     meshes_pcls,
     min_grasp_width=MIN_GRASP_WIDTH,
@@ -219,15 +222,15 @@ def choose_grasp(
     while True:
         cnt_try_sample += 1
         if cnt_try_sample > max_try_sample:
-            return None, None, None, None
+            return None, None, None, None, None
 
         ### Sample ggarray
         print(f"Sampling grasp, try {cnt_try_sample} ...")
         if cnt_try_sample <= 1:
-            ggarray, points_down, grasp_features, sinput = graspnet_runner.get_grasp(depth_map)
+            ggarray, points_down, grasp_features, sinput = graspnet_runner.get_grasp(depth_map, camera, object_mask)
         else:
             ggarray, points_down, grasp_features, sinput = graspnet_runner.get_ggarray_features(
-                depth_map, num_augment=cnt_try_sample
+                depth_map, camera, object_mask, num_augment=cnt_try_sample
             )
 
         if ggarray is None or len(ggarray) == 0:
@@ -274,15 +277,15 @@ def choose_grasp(
         InspireHandR_ggarray.depths += inspire_depth * 0.01
         InspireHandR_ggarray.scores = scores
 
-        ### Filter by z-axis
-        z_filter_mask = InspireHandR_ggarray.filter_grasp_group_by_z_axis(0.4)
-        two_fingers_ggarray = two_fingers_ggarray[z_filter_mask]
-        grasp_features = grasp_features[z_filter_mask]
-        inspire_depth = inspire_depth[z_filter_mask]
+        ### Filter by z-axis -- it's already done inside GraspNetRunner.get_grasp()
+        # z_filter_mask = InspireHandR_ggarray.filter_grasp_group_by_z_axis(0.4)
+        # two_fingers_ggarray = two_fingers_ggarray[z_filter_mask]
+        # grasp_features = grasp_features[z_filter_mask]
+        # inspire_depth = inspire_depth[z_filter_mask]
 
-        if len(InspireHandR_ggarray) == 0:
-            print("No grasp detected after z-axis filter")
-            continue
+        # if len(InspireHandR_ggarray) == 0:
+        #     print("No grasp detected after z-axis filter")
+        #     continue
 
         ### Check collision
         mfcdetector = ModelFreeCollisionDetectorMultifinger(points_down.cpu().numpy())
@@ -318,7 +321,7 @@ def run_eval(cfgs):
     meshes_pcls = load_meshes_pointcloud(cfgs.inspire_mesh_json_path, voxel_grid=INSPIREHANDR_VOXEL_GRID)
 
     # Setup env
-    exp_data = []
+    exp_data, by_object = [], {}
     robot_env = make_robosuite_env(cfgs.task, camera_name=cfgs.camera_name, render=cfgs.render)
 
     camera, _ = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
@@ -328,14 +331,36 @@ def run_eval(cfgs):
 
     num_success = 0
     for n in range(cfgs.num_trial):
-        print("Trial", n+1)
+        print("Trial", n + 1)
+
+        # When using DiverseLift
+        if hasattr(robot_env, "config_next_sample"):
+            if n % 2 == 0:
+                robot_env.config_next_sample(source="objaverse")
+            else:
+                random_quat = int(bool(n % 3))  # 33% 0 or 67% 1
+                robot_env.config_next_sample(source="agod", prob_random_quat=random_quat)
+
         camera, obs_dict = env_reset_get_camera_obs(robot_env, cfgs.camera_name, init_eef_pos=EEF_SEARCH_POS)
 
-        if DEBUG:
-            Image.fromarray(obs_dict["{}_image".format(cfgs.camera_name)][::-1]).show()
+        target_obj = getattr(robot_env, "target_object", "cube")
+        if target_obj not in by_object:
+            by_object[target_obj] = {
+                "count": 1,
+                "no_valid_grasp_proposal": 0,
+                "success": 0,
+            }
+        else:
+            by_object[target_obj]["count"] += 1
+
+        # if DEBUG:
+        # Image.fromarray(obs_dict["{}_image".format(cfgs.camera_name)][::-1]).show()
 
         # if cfgs.render:
         #     input("Press Enter to continue...")
+
+        # Object segmentation
+        object_mask = robot_env.get_object_mask()
 
         depth_map = CU.get_real_depth_map(
             sim=robot_env.sim, depth_map=obs_dict["{}_depth".format(cfgs.camera_name)][::-1]
@@ -345,6 +370,8 @@ def run_eval(cfgs):
             graspnet_runner,
             inspire_models,
             depth_map,
+            camera,
+            object_mask,
             inspire_mesh_json_path=cfgs.inspire_mesh_json_path,
             meshes_pcls=meshes_pcls,
         )
@@ -357,6 +384,7 @@ def run_eval(cfgs):
         # Could not get grasp from this depth map
         if InspireHandR_ggarray is None:
             print("Could not get grasp in this trial ... Skip.\n")
+            by_object[target_obj]["no_valid_grasp_proposal"] += 1
             exp_data.append(result)
             continue
 
@@ -378,7 +406,8 @@ def run_eval(cfgs):
             grab_site_offset=GRAB_SITE_OFFSET,
         )
         num_success += is_success
-        print(f"Result: {'success' if is_success else 'fail'}. So far {num_success} / {n+1}\n")
+        print(f"Result: {'success' if is_success else 'fail'}. So far {num_success} / {n + 1}\n")
+        by_object[target_obj]["success"] += is_success
 
         result["used_grasp_type"] = int(InspireHandR_grasp_used.grasp_type)
         result["used_multifinger_depth"] = inspire_depth_used
@@ -389,12 +418,14 @@ def run_eval(cfgs):
 
         exp_data.append(result)
 
-    return exp_data
+    robot_env.close()
+
+    return exp_data, by_object
 
 
 if __name__ == "__main__":
     cfgs = parse_arguments()
-    results = run_eval(cfgs)
+    results, by_object = run_eval(cfgs)
 
     results_by_type = {}
     suggested = {}
@@ -420,6 +451,7 @@ if __name__ == "__main__":
     result_dict["overall_success_rate"] = np.mean([r["is_success"] for r in results])
     result_dict["results_by_type"] = results_by_type
     result_dict["suggested"] = {k: v for k, v in sorted(suggested.items())}
+    result_dict["results_by_object"] = by_object
     result_dict["results"] = results
     with open(result_file, "w") as f:
         json.dump(result_dict, f, indent=4)

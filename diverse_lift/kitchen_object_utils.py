@@ -11,6 +11,9 @@ from robosuite.utils.mjcf_utils import find_elements, string_to_array
 from diverse_lift import BASE_ASSET_ZOO_PATH
 from diverse_lift.kitchen_objects import OBJ_CATEGORIES, OBJ_GROUPS
 
+# These have problem with MjSim.from_xml_string(), so do NOT use
+EXCLUDE_ASSETS = ["cake_2/"]
+
 
 class ObjCat:
     """
@@ -362,6 +365,12 @@ def sample_kitchen_object_helper(
                 choices[reg] = []
                 continue
             reg_choices = deepcopy(OBJ_CATEGORIES[cat][reg].mjcf_paths)
+
+            # Pop the excluded assets from reg_choices
+            for asset in EXCLUDE_ASSETS:
+                for path in reg_choices:
+                    if asset in path:
+                        reg_choices.remove(path)
 
             # exclude out objects based on split
             if split is not None:

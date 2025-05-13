@@ -904,21 +904,22 @@ class InspireHandRGraspGroup:
         self.update_by_id(index)
         return self
 
-    def filter_grasp_group_by_z_axis(self, angle_with_z_axis):
-        """Filter the graspgroup by angle with z axis and the worksapce
-        **input:**
-            angle_with_z_axis(float32): [0, 1]
-        """
-        mask = (self.grasp_group_array[:, 9] > angle_with_z_axis) & (self.grasp_group_array[:, 22] < MAX_GRASP_WIDTH)
-        workspace_mask = (
-            (self.grasp_group_array[:, 12] > -0.23)
-            & (self.grasp_group_array[:, 12] < 0.23)
-            & (self.grasp_group_array[:, 13] > -0.12)
-            & (self.grasp_group_array[:, 13] < 0.17)
-        )
-        index = mask & workspace_mask
-        self.update_by_id(index)
-        return index
+    # NOTE: Not using this
+    # def filter_grasp_group_by_z_axis(self, angle_with_z_axis):
+    #     """Filter the graspgroup by angle with z axis and the worksapce
+    #     **input:**
+    #         angle_with_z_axis(float32): [0, 1]
+    #     """
+    #     mask = (self.grasp_group_array[:, 9] > angle_with_z_axis) & (self.grasp_group_array[:, 22] < MAX_GRASP_WIDTH)
+    #     # workspace_mask = (
+    #     #     (self.grasp_group_array[:, 12] > -0.23)
+    #     #     & (self.grasp_group_array[:, 12] < 0.23)
+    #     #     & (self.grasp_group_array[:, 13] > -0.12)
+    #     #     & (self.grasp_group_array[:, 13] < 0.17)
+    #     # )
+    #     index = mask # & workspace_mask
+    #     self.update_by_id(index)
+    #     return index
 
     def update_by_id(self, index):
         """Modify the order of the grasp_group_array by index
